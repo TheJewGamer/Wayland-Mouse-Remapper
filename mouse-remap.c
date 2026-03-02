@@ -13,12 +13,13 @@ Last Update: 3/1/2026
 #include <pthread.h> //threads
 #include <pwd.h> //user info
 #include <grp.h> //groups
+#include <time.h> //timing stuff
 #include <dbus/dbus.h> //dbus
 #include <linux/input.h> //input
 #include <linux/uinput.h> //input
 
 //GLOBAL VARS
-#define MOUSE_DEVICE "/dev/input/event7" //what mouse to use (use command cat /proc/bus/input/devices to find)
+#define MOUSE_NAME "" //used to get the event ID of the device
 const char *sudo_user = NULL;
 
 //dBus service vars (used to get input from the KWIN script)
@@ -32,12 +33,25 @@ struct mapping {
     int from_code;
     int from_value;
     int to_key;
+    int layer_shifted; //bool for detecting layershift or not
 };
 
+//mapping vars
 struct mapping *mappings = NULL; //mapping array
 int mapping_count = 0; //number of active rebinds
 int mapping_capacity = 0; //number of spaces in the mapping array. Grows and shrinks by power of 2 
 pthread_mutex_t mappings_mutex = PTHREAD_MUTEX_INITIALIZER; //prevents mapping array being accessed by the dbubs thread and this program as same time. If that happend could crash
+
+//layershift vars
+int layer_toggle_button = -1;
+int layer_hold_button = -1;
+int layerShiftActive = 0;
+
+//repeat vars
+int repeat_key = -1;
+int repeat_restart = 0;
+pthread_mutex_t repeat_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t repeat_cond = PTHREAD_COND_INITIALIZER;
 
 //register mouse keys
 int mouseKey(const char *name, int *type, int *scrollDirection) {
@@ -154,6 +168,20 @@ int keyboardKey(const char *name) {
     if (strcmp(name, "KEY_F11") == 0) return KEY_F11;
     if (strcmp(name, "KEY_F12") == 0) return KEY_F12;
 
+    //extra function keys (these are added so extra mouse buttons can be used. By default mouses can only have two side buttons so can mark extra buttons as these)
+    if (strcmp(name, "KEY_F13") == 0) return KEY_F13;
+    if (strcmp(name, "KEY_F14") == 0) return KEY_F14;
+    if (strcmp(name, "KEY_F15") == 0) return KEY_F15;
+    if (strcmp(name, "KEY_F16") == 0) return KEY_F16;
+    if (strcmp(name, "KEY_F17") == 0) return KEY_F17;
+    if (strcmp(name, "KEY_F18") == 0) return KEY_F18;
+    if (strcmp(name, "KEY_F19") == 0) return KEY_F19;
+    if (strcmp(name, "KEY_F20") == 0) return KEY_F20;
+    if (strcmp(name, "KEY_F21") == 0) return KEY_F21;
+    if (strcmp(name, "KEY_F22") == 0) return KEY_F22;
+    if (strcmp(name, "KEY_F23") == 0) return KEY_F23;
+    if (strcmp(name, "KEY_F24") == 0) return KEY_F24;
+
     //numpad
     if (strcmp(name, "KEY_KP0") == 0) return KEY_KP0;
     if (strcmp(name, "KEY_KP1") == 0) return KEY_KP1;
@@ -178,17 +206,180 @@ int keyboardKey(const char *name) {
     if (strcmp(name, "KEY_RIGHT") == 0) return KEY_RIGHT;
     if (strcmp(name, "KEY_DOWN") == 0) return KEY_DOWN;
 
+    //macros actions
+    if (strcmp(name, "COPY_MACRO") == 0) return -2;
+    if (strcmp(name, "PASTE_MACRO") == 0) return -3;
+
     //error
     return -1;
 }
 
-//method to clean the array. Garbage collection
+//helper method to send inputs to virtual device
+void emit(int fd, int type, int code, int value) 
+{
+    struct input_event ev = {0};
+    ev.type = type;
+    ev.code = code;
+    ev.value = value;
+    write(fd, &ev, sizeof(ev));
+}
+
+//helper method to simulate key presses
+void send_key(int fd, int key) 
+{
+    emit(fd, EV_KEY, key, 1); //key down
+    emit(fd, EV_SYN, SYN_REPORT, 0); //key down complete
+    emit(fd, EV_KEY, key, 0); //key up
+    emit(fd, EV_SYN, SYN_REPORT, 0); //key up complete
+}
+
+void doMacro(int fd, int macro)
+{
+    //copy macro
+    if (macro == -2)
+    {
+        emit(fd, EV_KEY, KEY_LEFTCTRL, 1);
+        emit(fd, EV_KEY, KEY_C, 1);
+        emit(fd, EV_SYN, SYN_REPORT, 0);
+        emit(fd, EV_KEY, KEY_C, 0);
+        emit(fd, EV_KEY, KEY_LEFTCTRL, 0);
+        emit(fd, EV_SYN, SYN_REPORT, 0);
+    }
+    //paste macro
+    else if (macro == -3)
+    {
+        emit(fd, EV_KEY, KEY_LEFTCTRL, 1);
+        emit(fd, EV_KEY, KEY_V, 1);
+        emit(fd, EV_SYN, SYN_REPORT, 0);
+        emit(fd, EV_KEY, KEY_V, 0);
+        emit(fd, EV_KEY, KEY_LEFTCTRL, 0);
+        emit(fd, EV_SYN, SYN_REPORT, 0);
+    }
+}
+
+//TODO: Look through this confirm var names and other stuff is all good
+void *repeat_thread(void *arg)
+{
+    int fd = *(int *)arg;
+    struct timespec ts;
+
+    while (1)
+    {
+        pthread_mutex_lock(&repeat_mutex);
+
+        //sleep until a key is pressed
+        while (repeat_key == -1)
+            pthread_cond_wait(&repeat_cond, &repeat_mutex);
+
+        int key = repeat_key;
+        repeat_restart = 0;
+        pthread_mutex_unlock(&repeat_mutex);
+
+        //send initial key press immediately
+        send_key(fd, key);
+
+        //initial delay using timed wait so it can be interrupted
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 500000000; //500ms
+        if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
+
+        pthread_mutex_lock(&repeat_mutex);
+        pthread_cond_timedwait(&repeat_cond, &repeat_mutex, &ts);
+        pthread_mutex_unlock(&repeat_mutex);
+
+        //repeat until button released or restarted
+        while (repeat_key == key && !repeat_restart)
+        {
+            send_key(fd, key);
+
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_nsec += 33000000; //33ms
+            if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
+
+            pthread_mutex_lock(&repeat_mutex);
+            pthread_cond_timedwait(&repeat_cond, &repeat_mutex, &ts);
+            pthread_mutex_unlock(&repeat_mutex);
+        }
+    }
+    return NULL;
+}
+
+//get mouse event id by name. Needed as event ids can change on reboot
+char* getMouseEventID(const char *mouseName)
+{
+    //var
+    static char mouseFilePath[64];
+
+    //open input devices file
+    FILE *inputDevicesFile = fopen("/proc/bus/input/devices", "r");
+
+    //confirm that file was opened successfully
+    if (!inputDevicesFile)
+    { 
+        //logging
+        perror("open /proc/bus/input/devices"); 
+        
+        //stop script
+        exit(1); 
+    }
+
+    //vars
+    char currentLine[256];
+    int foundMouse = 0; //bool
+
+    //loop through each line in file
+    while (fgets(currentLine, sizeof(currentLine), inputDevicesFile))
+    {
+        //check to see if current line contains mouseName
+        if (strstr(currentLine, mouseName))
+        {
+            //it did update var
+            foundMouse = 1;
+        }
+
+        //check to see if we found the mouseName line
+        if (foundMouse)
+        {
+            //find the handler line
+            if(strstr(currentLine, "Handlers="))
+            {
+                //find the event line and extract device path. IE: /dev/input/eventX
+                char *event = strstr(currentLine, "event");
+
+                //var to hold event number
+                int eventNum;
+                
+                //extract number after the word 'event'
+                sscanf(event, "event%d", &eventNum);
+
+                //build full device path
+                snprintf(mouseFilePath, sizeof(mouseFilePath), "/dev/input/event%d", eventNum);
+                
+                //close device file
+                fclose(inputDevicesFile);
+
+                //return device path
+                return mouseFilePath;
+            }
+        }
+    }
+
+    //Did not find mouse based on name
+    fclose(inputDevicesFile); //close file
+    fprintf(stderr, "ERROR: could not find mouse device: %s\n", mouseName); //Loggins
+    exit(1); //stop script
+}
+
+//method to clean the array and other vars. Garbage collection
 void freeMappings()
 {
     free(mappings);
     mappings = NULL;
     mapping_count = 0;
     mapping_capacity = 0;
+    layer_toggle_button = -1;
+    layer_hold_button = -1;
+    layerShiftActive = 0;
 }
 
 //helper method to get the home file path for the user. This is needed as this script is run using sudo
@@ -223,72 +414,176 @@ void dropPrivileges()
     if (setuid(userInfo->pw_uid) < 0) { perror("setuid"); exit(1); }
 }
 
+//method to parse mappings from provided configuration file
+void readConfig(FILE *configurationFileData)
+{
+    //vars
+    int inLayerSection = 0;
+    char line[256];
+
+    //loop through each line in configuration file until no more lines
+    while (fgets(line, sizeof(line), configurationFileData))
+    {
+        //check to see if line is an empty line or comment
+        if (line[0] == '#' || line[0] == '\n')
+        {
+            //skip if new line or comment
+            continue;
+        }
+
+        //clean line of new line at end
+        line[strcspn(line, "\n")] = 0;
+
+        //check to see if we have hit layershift section
+        if (strcmp(line, "[layershift]") == 0)
+        {
+            //update var
+            inLayerSection = 1;
+
+            //end this loop run
+            continue;
+        }
+
+        //buffer vars for key mappings
+        char from[64];
+        char to[64];
+
+        //try to split line on =
+        if (sscanf(line, "%63[^=]=%63s", from, to) != 2)
+        {
+            //could not split so end this loop run
+            continue;
+        }
+
+        //check to see if line contains layer_shift_toggle button
+        if (strcmp(from, "LAYER_SHIFT_TOGGLE") == 0)
+        {
+            //vars
+            int type;
+            int value;
+            layer_toggle_button = mouseKey(to, &type, &value);
+
+            //end this loop run
+            continue;
+        }
+        //check to see if line contains layer_shift_hold button
+        if (strcmp(from, "LAYER_SHIFT_HOLD") == 0)
+        {
+            int type, value;
+            layer_hold_button = mouseKey(to, &type, &value);
+
+            //end this loop run
+            continue;
+        }
+
+        //vars
+        struct mapping currentMapping;
+        currentMapping.from_code = mouseKey(from, &currentMapping.from_type, &currentMapping.from_value); //convet to mouse key
+        currentMapping.to_key = keyboardKey(to); //convert to key code
+        currentMapping.layer_shifted = inLayerSection; //set if in layershift
+
+        //confirm valid key/mouse codes
+        if (currentMapping.from_code < 0 || currentMapping.to_key < 0)
+        {
+            //logging
+            fprintf(stderr, "ERROR: unknown mapping: %s=%s\n", from, to);
+            
+            //end this loop run
+            continue;
+        }
+
+        //check mappning array size and increase if needed
+        if (mapping_count >= mapping_capacity)
+        {
+            //first run check
+            if (mapping_capacity == 0)
+            {
+                //set inital size
+                mapping_capacity = 4;
+            }
+            //not first run
+            else
+            {
+                //double arrray size
+                mapping_capacity *= 2;
+            }
+
+            //resize mapping array
+            mappings = realloc(mappings, mapping_capacity * sizeof(struct mapping));
+        }
+        //add mapping to array
+        mappings[mapping_count++] = currentMapping;
+    }
+}
+
 //method to load the custom mapping configuration based on currently provided appName
 void loadConfig(const char *appName)
 {
     //vars
-    const char *home = getHome();
-    char path[512]; //buffer
-    char configurationFilePath[512] = {0}; //buffer all zeros by default for detection
+    const char *homePath = getHome();
+    char configurationPathBuffer[512];
+    char configurationFilePath[512] = {0};
 
-    //get configuration path 
-    snprintf(path, sizeof(path), "%s/.config/mouse-remap", home);
+    //get configuration path
+    snprintf(configurationPathBuffer, sizeof(configurationPathBuffer), "%s/.config/mouse-remap", homePath);
 
     //open configuration directory
-    DIR *configurationFilePath = opendir(path);
+    DIR *configurationDirPath = opendir(configurationPathBuffer);
 
     //confirm configuration directory was found
-    if (configurationFilePath) 
+    if (configurationDirPath)
     {
-        //var
         struct dirent *entry;
 
-        //loop through every file in the directory
-        while ((entry = readdir(configurationFilePath)) != NULL) 
+        //loop through every file configuration directory
+        while ((entry = readdir(configurationDirPath)) != NULL)
         {
-            //if fileName is default.conf skip it (honestly not sure if this is needed as what are the chances a app is called 'default' but better safe than sorry)
+            //skip default.conf
             if (strcmp(entry->d_name, "default.conf") == 0) continue;
 
-            //check if appName is contained in filename
-            if (strstr(entry->d_name, appName)) 
+            //check if appName is contained in filename of current configuration file
+            if (strstr(entry->d_name, appName))
             {
-                //build full path to configuration file
-                snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/%s", home, entry->d_name);
+                //build full path to configuration file if name matches
+                snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/%s", homePath, entry->d_name);
                 break;
             }
         }
-        //stop reading from configuration directory.
-        closedir(configurationFilePath);
+        //stop reading from configuration directory
+        closedir(configurationDirPath);
     }
-    
+
     //open configuration file
     FILE *configurationFileData = fopen(configurationFilePath, "r");
 
     //confirm not null
-    if (!configurationFileData) 
+    if (!configurationFileData)
     {
-        //load default configuration file as no configuration file for current appName was found
-        snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/default.conf", home);
-        f = fopen(configurationFilePath, "r");
+        //load default configuration file as no matching configuration file for current focused app found
+        snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/default.conf", homePath);
+        configurationFileData = fopen(configurationFilePath, "r");
 
-        //confirms that default configuration file exists. Might want to look into checking this during script start and remove this check here
-        if (!configurationFileData) 
+        //confirm that default configuration file exists. TODO: Remove this as scritp should check for this in the begining not every run
+        if (!configurationFileData)
         {
             //logging
             fprintf(stderr, "no config found for %s and no default.conf\n", appName);
             return;
         }
-
         //logging
         printf("no config for %s, using default\n", appName);
-    } 
-    //configuration file found for current appName
-    else 
+    }
+    //found matching configuration file
+    else
     {
         //logging
         printf("loaded config for %s\n", configurationFilePath);
     }
-    //stop reading configuration file
+
+    //parse configuration file
+    readConfig(configurationFileData);
+
+    //close configuration file
     fclose(configurationFileData);
 }
 
@@ -369,32 +664,18 @@ void *dbus_thread(void *arg)
     return NULL;
 }
 
-//helper method to send inputs to virtual device
-void emit(int fd, int type, int code, int value) 
-{
-    struct inputEvent ev = {0};
-    ev.type = type;
-    ev.code = code;
-    ev.value = value;
-    write(fd, &ev, sizeof(ev));
-}
-
-//helper method to simulate key presses
-void send_key(int fd, int key) 
-{
-    emit(fd, EV_KEY, key, 1); //key down
-    emit(fd, EV_SYN, SYN_REPORT, 0); //key down complete
-    emit(fd, EV_KEY, key, 0); //key up
-    emit(fd, EV_SYN, SYN_REPORT, 0); //key up complete
-}
-
+//TODO make this work better as messes with mouse settings
 int setup_uinput(int src_fd) 
 {
     //vars for virtual mouse device
     int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
     if (fd < 0)
     { 
-        perror("open /dev/uinput"); exit(1); 
+        //logging ERROR
+        perror("open /dev/uinput");
+        
+        //stop script
+        exit(1); 
     }
 
     //register event types
@@ -420,13 +701,18 @@ int setup_uinput(int src_fd)
     ioctl(fd, UI_SET_RELBIT, REL_Y);
     ioctl(fd, UI_SET_RELBIT, REL_WHEEL);
     ioctl(fd, UI_SET_RELBIT, REL_HWHEEL);
+    
+    //set as virtual pointer device
+    ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_POINTER);
+    ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
 
     //create virtual mouse
     struct uinput_setup usetup = {0};
-    usetup.id.bustype = BUS_USB;
+    usetup.id.bustype = BUS_VIRTUAL;
     usetup.id.vendor  = 0x1234;
     usetup.id.product = 0x5678;
     strcpy(usetup.name, "virtual-mouse");
+
     ioctl(fd, UI_DEV_SETUP, &usetup);
     ioctl(fd, UI_DEV_CREATE);
 
@@ -434,6 +720,7 @@ int setup_uinput(int src_fd)
     return fd;
 }
 
+//main
 int main() 
 {
     //check to see if running as sudo
@@ -451,9 +738,9 @@ int main()
     loadConfig("default");
 
     //open/grab mouse as root
-    int src_fd = open(MOUSE_DEVICE, O_RDONLY);
-    if (src_fd < 0) { perror("open mouse"); return 1; }
-    if (ioctl(src_fd, EVIOCGRAB, 1) < 0) { perror("grab"); return 1; }
+    char *mouseDevice = getMouseEventID(MOUSE_NAME);
+    printf("found mouse at %s\n", mouseDevice);
+    int src_fd = open(mouseDevice, O_RDONLY);
 
     //set up virtual device as root
     int out_fd = setup_uinput(src_fd);
@@ -465,14 +752,54 @@ int main()
     pthread_t tid;
     pthread_create(&tid, NULL, dbus_thread, NULL);
 
+    //start repeat thread as normal user
+    pthread_t repeat_tid;
+    pthread_create(&repeat_tid, NULL, repeat_thread, &out_fd);
+
     //holds incoming input
-    struct inputEvent ev;
+    struct input_event ev;
 
     //read input from actual mouse
     while (read(src_fd, &ev, sizeof(ev)) == sizeof(ev)) 
     {
         //var for checking if current key is remapped or not
         int remapped = 0;
+
+        //check to see if layershift toggle button is pressed
+        if (ev.type == EV_KEY && ev.code == layer_toggle_button)
+        {
+            //key down only
+            if (ev.value == 1)
+            {
+                //invert var
+                layerShiftActive = !layerShiftActive;
+
+                //stop repeating current key TODO not sure if I should keep this or not
+                pthread_mutex_lock(&repeat_mutex);
+                repeat_key = -1;
+                pthread_cond_signal(&repeat_cond);
+                pthread_mutex_unlock(&repeat_mutex);
+            }
+            
+            //end this loop run
+            continue;
+        }
+
+        //check to see if layershift hold button is pressed
+        if (ev.type == EV_KEY && ev.code == layer_hold_button)
+        {
+            //active while held
+            layerShiftActive = ev.value;
+
+            //stop repeating current key TODO not sure if I should keep this or not
+            pthread_mutex_lock(&repeat_mutex);
+            repeat_key = -1;
+            pthread_cond_signal(&repeat_cond);
+            pthread_mutex_unlock(&repeat_mutex);
+
+            //end this loop run here
+            continue;
+        }
 
         //lock so configuration cannot be swapped
         pthread_mutex_lock(&mappings_mutex);
@@ -483,14 +810,46 @@ int main()
             //var
             struct mapping *currentMapping = &mappings[i];
 
+            //skip mappings that are not part of current layer
+            if (currentMapping->layer_shifted != layerShiftActive) continue;
+
             //check to see if current key event is currently remapped
             if (ev.type == EV_KEY && currentMapping->from_type == EV_KEY && ev.code == currentMapping->from_code) 
             {
-                //matches so get remap key
-                ev.code = currentMapping->to_key;
-                write(out_fd, &ev, sizeof(ev)); // send remapped key to virtual device
-                remapped = 1; //update var
-                break; //done
+                //key down
+                if (ev.value == 1)
+                {
+                    //check to see if marco. We use negatives for marco so easy to check
+                    if (currentMapping->to_key < 0)
+                    {
+                        //run marco
+                        doMacro(out_fd, currentMapping->to_key);
+                    }
+                    //not an marco
+                    else
+                    {
+                        //start repeating
+                        pthread_mutex_lock(&repeat_mutex);
+                        repeat_key = currentMapping->to_key;
+                        repeat_restart = 1;
+                        pthread_cond_signal(&repeat_cond);
+                        pthread_mutex_unlock(&repeat_mutex);
+                    }
+                }
+                //key up
+                else if (ev.value == 0)
+                {
+                    //button released stop repeating
+                    pthread_mutex_lock(&repeat_mutex);
+                    repeat_key = -1;
+                    pthread_mutex_unlock(&repeat_mutex);
+                }
+
+                //update var
+                remapped = 1;
+
+                //end loop
+                break;
             }
 
             //check to see if scroll event and is currently remapped
