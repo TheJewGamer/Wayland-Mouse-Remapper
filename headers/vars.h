@@ -1,3 +1,8 @@
+/* 
+Author: TheJewGamer
+Last Update: 3/4/2026
+*/
+
 #ifndef VARS_H
 #define VARS_H
 
@@ -38,7 +43,11 @@ extern pthread_cond_t repeat_cond;
 
 //misc vars
 extern char MOUSE_NAME[];
-extern const char *sudo_user;
+extern const char *USER;
+
+//path vars
+extern const char *HOMEPATH;
+extern char CONFIGURATIONFOLDERPATH[512];
 
 //done
 #endif

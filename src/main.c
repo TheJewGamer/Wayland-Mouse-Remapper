@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/1/2026
+Last Update: 3/4/2026
 */
 
 //includes
@@ -179,14 +179,14 @@ char* getMouseEventID(const char *mouseName)
 
 
 //dbus listener method for KWIN script
-void *dbus_thread(void *arg) //TODO: double check why the arg is needed here despite not being used
+void *windowListener(void *arg) //TODO: double check why the arg is needed here despite not being used
 {
     //vars
     DBusError err;
     dbus_error_init(&err);
 
     //connect to user dbus session
-    DBusConnection *conn = dbus_bus_get(DBUS_BUS_SESSION, &err);
+    DBusConnection *windowListenerConnection = dbus_bus_get(DBUS_BUS_SESSION, &err);
 
     //check to see if connection is successful
     if (dbus_error_is_set(&err)) 
@@ -200,7 +200,7 @@ void *dbus_thread(void *arg) //TODO: double check why the arg is needed here des
     }
 
     //register custom dbus service
-    dbus_bus_request_name(conn, DBUS_SERVICE, DBUS_NAME_FLAG_REPLACE_EXISTING, &err);
+    dbus_bus_request_name(windowListenerConnection, DBUS_SERVICE, DBUS_NAME_FLAG_REPLACE_EXISTING, &err);
     
     //check to see if registeration was successful
     if (dbus_error_is_set(&err)) 
@@ -214,25 +214,25 @@ void *dbus_thread(void *arg) //TODO: double check why the arg is needed here des
     }
 
     //infinite loop but sleeps until dbus gets a message. Will exit if dbus connection is lost though
-    while (dbus_connection_read_write_dispatch(conn, -1)) 
+    while (dbus_connection_read_write_dispatch(windowListenerConnection, -1)) 
     {
         //get first message from the dbus by popping it
-        DBusMessage *msg = dbus_connection_pop_message(conn);
+        DBusMessage *windowListenerInput = dbus_connection_pop_message(windowListenerConnection);
 
         //check to see if message was returned (needed to prevent crash in extreme cases)
-        if (!msg) 
+        if (!windowListenerInput) 
         {
             continue;
         }
 
         //confirm message is on the correct interface
-        if (dbus_message_is_method_call(msg, DBUS_IFACE, "SetApp")) 
+        if (dbus_message_is_method_call(windowListenerInput, DBUS_IFACE, "SetApp")) 
         {
             //var
             const char *appName = NULL;
 
             //extract data from dbus message
-            if (dbus_message_get_args(msg, &err, DBUS_TYPE_STRING, &appName, DBUS_TYPE_INVALID)) 
+            if (dbus_message_get_args(windowListenerInput, &err, DBUS_TYPE_STRING, &appName, DBUS_TYPE_INVALID)) 
             {
                 //logging
                 printf("switching to app: %s\n", appName);
@@ -249,7 +249,7 @@ void *dbus_thread(void *arg) //TODO: double check why the arg is needed here des
             }
         }
         //remove the current message garabge collection
-        dbus_message_unref(msg);
+        dbus_message_unref(windowListenerInput);
     }
 
     return NULL;
@@ -314,16 +314,8 @@ int setup_uinput()
 //main
 int main() 
 {
-    //check to see if running as sudo
-    if(!getenv("SUDO_USER"))
-    {
-        //not running as sudo user print error and kill script
-        fprintf(stderr, "Script not run with sudo. Please relaunch using sudo"); //logging
-        exit(1);
-    }
-
-    //set sudo_user var
-    sudo_user = getenv("SUDO_USER");
+    //inital preq check
+    setupCheck();
 
     //load default config
     loadConfig("default");
@@ -339,9 +331,9 @@ int main()
     //drop privileges from sudo to real user
     dropPrivileges();
 
-    //start dbus thread as standard user
+    //start dubs thread for window listening as  user
     pthread_t tid;
-    pthread_create(&tid, NULL, dbus_thread, NULL);
+    pthread_create(&tid, NULL, windowListener, NULL);
 
     //start repeat thread as normal user
     pthread_t repeat_tid;

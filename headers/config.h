@@ -1,3 +1,8 @@
+/* 
+Author: TheJewGamer
+Last Update: 3/4/2026
+*/
+
 #ifndef CONFIG_H
 #define CONFIG_H
 

@@ -1,3 +1,9 @@
+/* 
+Author: TheJewGamer
+Last Update: 3/4/2026
+*/
+
+//other files
 #include "../headers/vars.h"
 
 //type for key remapping
@@ -26,5 +32,10 @@ int repeat_restart = 0;
 pthread_mutex_t repeat_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t repeat_cond = PTHREAD_COND_INITIALIZER;
 
+//misc vars
 char MOUSE_NAME[] = "Razer Razer Mouse Dock Pro"; //used to get the event ID of the device
-const char *sudo_user = NULL;
+const char *USER = NULL;
+
+//path vars
+const char *HOMEPATH = NULL;
+char CONFIGURATIONFOLDERPATH[512] = "";

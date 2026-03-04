@@ -1,3 +1,8 @@
+/* 
+Author: TheJewGamer
+Last Update: 3/4/2026
+*/
+
 //file imports
 #include "../headers/config.h"
 #include "../headers/bindings.h"
@@ -110,38 +115,30 @@ void readConfig(FILE *configurationFileData)
 void loadConfig(const char *appName)
 {
     //vars
-    const char *homePath = getHome();
-    char configurationPathBuffer[512];
     char configurationFilePath[512] = {0};
 
-    //get configuration path
-    snprintf(configurationPathBuffer, sizeof(configurationPathBuffer), "%s/.config/mouse-remap", homePath);
-
     //open configuration directory
-    DIR *configurationDirPath = opendir(configurationPathBuffer);
+    DIR *configurationFolder = opendir(CONFIGURATIONFOLDERPATH);
 
-    //confirm configuration directory was found
-    if (configurationDirPath)
+    //var to hold files in folder
+    struct dirent *entry;
+
+    //loop through every file configuration directory
+    while ((entry = readdir(configurationFolder)) != NULL)
     {
-        struct dirent *entry;
+        //skip default.conf
+        if (strcmp(entry->d_name, "default.conf") == 0) continue;
 
-        //loop through every file configuration directory
-        while ((entry = readdir(configurationDirPath)) != NULL)
+        //check if appName is contained in filename of current configuration file
+        if (strstr(entry->d_name, appName))
         {
-            //skip default.conf
-            if (strcmp(entry->d_name, "default.conf") == 0) continue;
-
-            //check if appName is contained in filename of current configuration file
-            if (strstr(entry->d_name, appName))
-            {
-                //build full path to configuration file if name matches
-                snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/%s", homePath, entry->d_name);
-                break;
-            }
+            //build full path to configuration file if name matches
+            snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/%s", HOMEPATH, entry->d_name);
+            break;
         }
-        //stop reading from configuration directory
-        closedir(configurationDirPath);
     }
+    //stop reading from configuration directory
+    closedir(configurationFolder);
 
     //open configuration file
     FILE *configurationFileData = fopen(configurationFilePath, "r");
@@ -150,16 +147,9 @@ void loadConfig(const char *appName)
     if (!configurationFileData)
     {
         //load default configuration file as no matching configuration file for current focused app found
-        snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/default.conf", homePath);
+        snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/default.conf", HOMEPATH);
         configurationFileData = fopen(configurationFilePath, "r");
 
-        //confirm that default configuration file exists. TODO: Remove this as scritp should check for this in the begining not every run
-        if (!configurationFileData)
-        {
-            //logging
-            fprintf(stderr, "no config found for %s and no default.conf\n", appName);
-            return;
-        }
         //logging
         printf("no config for %s, using default\n", appName);
     }

@@ -1,3 +1,9 @@
+/* 
+Author: TheJewGamer
+Last Update: 3/4/2026
+*/
+
+//other files
 #include "../headers/bindings.h"
 
 //register mouse keys
