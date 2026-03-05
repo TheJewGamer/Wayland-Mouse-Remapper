@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/4/2026
+Last Update: 3/5/2026
 */
 
 //other files
@@ -26,14 +26,8 @@ int layer_toggle_button = -1;
 int layer_hold_button = -1;
 int layerShiftActive = 0;
 
-//repeat vars
-int repeat_key = -1;
-int repeat_restart = 0;
-pthread_mutex_t repeat_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t repeat_cond = PTHREAD_COND_INITIALIZER;
-
 //misc vars
-char MOUSE_NAME[] = "Razer Razer Mouse Dock Pro"; //used to get the event ID of the device
+char MOUSE_NAME[] = "Razer Razer Mouse Dock Pro"; //used to get the event ID of the device TODO: update this so that it can be changed by the UI in the future
 const char *USER = NULL;
 
 //path vars

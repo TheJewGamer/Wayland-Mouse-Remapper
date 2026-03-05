@@ -1,11 +1,12 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/4/2026
+Last Update: 3/5/2026
 */
 
 //standard includes
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
 
 //file includes
 #include "../headers/helpers.h"
@@ -75,7 +76,6 @@ void setupCheck()
         fprintf(stderr, "ERROR: Could not find configuration folder. Please create at the following location under your user profile: ~/.config/mouse-remap");
         exit(1);
     }
-
 
     //check to see if we can get the default configuration file
 

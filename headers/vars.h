@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/4/2026
+Last Update: 3/5/2026
 */
 
 #ifndef VARS_H
@@ -34,12 +34,6 @@ extern pthread_mutex_t mappings_mutex; //prevents mapping array being accessed b
 extern int layer_toggle_button;
 extern int layer_hold_button;
 extern int layerShiftActive;
-
-//repeat vars
-extern int repeat_key;
-extern int repeat_restart;
-extern pthread_mutex_t repeat_mutex;
-extern pthread_cond_t repeat_cond;
 
 //misc vars
 extern char MOUSE_NAME[];

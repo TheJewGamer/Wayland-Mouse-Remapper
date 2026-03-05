@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/4/2026
+Last Update: 3/5/2026
 */
 
 //includes
@@ -20,96 +20,7 @@ Last Update: 3/4/2026
 #include "../headers/vars.h"
 #include "../headers/config.h"
 #include "../headers/helpers.h"
-
-//helper method to send inputs to virtual device
-void emit(int fd, int type, int code, int value) 
-{
-    struct input_event ev = {0};
-    ev.type = type;
-    ev.code = code;
-    ev.value = value;
-    write(fd, &ev, sizeof(ev));
-}
-
-//helper method to simulate key presses
-void send_key(int fd, int key) 
-{
-    emit(fd, EV_KEY, key, 1); //key down
-    emit(fd, EV_SYN, SYN_REPORT, 0); //key down complete
-    emit(fd, EV_KEY, key, 0); //key up
-    emit(fd, EV_SYN, SYN_REPORT, 0); //key up complete
-}
-
-void doMacro(int fd, int macro)
-{
-    //copy macro
-    if (macro == -2)
-    {
-        emit(fd, EV_KEY, KEY_LEFTCTRL, 1);
-        emit(fd, EV_KEY, KEY_C, 1);
-        emit(fd, EV_SYN, SYN_REPORT, 0);
-        emit(fd, EV_KEY, KEY_C, 0);
-        emit(fd, EV_KEY, KEY_LEFTCTRL, 0);
-        emit(fd, EV_SYN, SYN_REPORT, 0);
-    }
-    //paste macro
-    else if (macro == -3)
-    {
-        emit(fd, EV_KEY, KEY_LEFTCTRL, 1);
-        emit(fd, EV_KEY, KEY_V, 1);
-        emit(fd, EV_SYN, SYN_REPORT, 0);
-        emit(fd, EV_KEY, KEY_V, 0);
-        emit(fd, EV_KEY, KEY_LEFTCTRL, 0);
-        emit(fd, EV_SYN, SYN_REPORT, 0);
-    }
-}
-
-//TODO: Look through this confirm var names and other stuff is all good
-void *repeat_thread(void *arg)
-{
-    int fd = *(int *)arg;
-    struct timespec ts;
-
-    while (1)
-    {
-        pthread_mutex_lock(&repeat_mutex);
-
-        //sleep until a key is pressed
-        while (repeat_key == -1)
-            pthread_cond_wait(&repeat_cond, &repeat_mutex);
-
-        int key = repeat_key;
-        repeat_restart = 0;
-        pthread_mutex_unlock(&repeat_mutex);
-
-        //send initial key press immediately
-        send_key(fd, key);
-
-        //initial delay using timed wait so it can be interrupted
-        clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_nsec += 500000000; //500ms
-        if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
-
-        pthread_mutex_lock(&repeat_mutex);
-        pthread_cond_timedwait(&repeat_cond, &repeat_mutex, &ts);
-        pthread_mutex_unlock(&repeat_mutex);
-
-        //repeat until button released or restarted
-        while (repeat_key == key && !repeat_restart)
-        {
-            send_key(fd, key);
-
-            clock_gettime(CLOCK_REALTIME, &ts);
-            ts.tv_nsec += 33000000; //33ms
-            if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
-
-            pthread_mutex_lock(&repeat_mutex);
-            pthread_cond_timedwait(&repeat_cond, &repeat_mutex, &ts);
-            pthread_mutex_unlock(&repeat_mutex);
-        }
-    }
-    return NULL;
-}
+#include "../headers/inputHandlers.h"
 
 //get mouse event id by name. Needed as event ids can change on reboot
 char* getMouseEventID(const char *mouseName)
@@ -177,9 +88,8 @@ char* getMouseEventID(const char *mouseName)
     exit(1); //stop script
 }
 
-
 //dbus listener method for KWIN script
-void *windowListener(void *arg) //TODO: double check why the arg is needed here despite not being used
+void *windowListener(void *arg) //Note arg is needed here despite not being used.
 {
     //vars
     DBusError err;
@@ -255,47 +165,47 @@ void *windowListener(void *arg) //TODO: double check why the arg is needed here 
     return NULL;
 }
 
-//TODO make this work better as messes with mouse settings
-int setup_uinput() 
+// sets up the virutal mouse
+int setupVirtualMouse() 
 {
     //vars for virtual mouse device
-    int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
-    if (fd < 0)
+    int uinputFile = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+    if (uinputFile < 0)
     { 
         //logging ERROR
-        perror("open /dev/uinput");
+        fprintf(stderr, "could not open /dev/uinput\n");
         
         //stop script
         exit(1); 
     }
 
     //register event types
-    ioctl(fd, UI_SET_EVBIT, EV_KEY); //button presses
-    ioctl(fd, UI_SET_EVBIT, EV_REL); //movement
-    ioctl(fd, UI_SET_EVBIT, EV_SYN); //sync events
+    ioctl(uinputFile, UI_SET_EVBIT, EV_KEY); //button presses
+    ioctl(uinputFile, UI_SET_EVBIT, EV_REL); //movement
+    ioctl(uinputFile, UI_SET_EVBIT, EV_SYN); //sync events
 
     //register standard mouse buttons
-    ioctl(fd, UI_SET_KEYBIT, BTN_LEFT);
-    ioctl(fd, UI_SET_KEYBIT, BTN_RIGHT);
-    ioctl(fd, UI_SET_KEYBIT, BTN_MIDDLE);
-    ioctl(fd, UI_SET_KEYBIT, BTN_SIDE);
-    ioctl(fd, UI_SET_KEYBIT, BTN_EXTRA);
+    ioctl(uinputFile, UI_SET_KEYBIT, BTN_LEFT);
+    ioctl(uinputFile, UI_SET_KEYBIT, BTN_RIGHT);
+    ioctl(uinputFile, UI_SET_KEYBIT, BTN_MIDDLE);
+    ioctl(uinputFile, UI_SET_KEYBIT, BTN_SIDE);
+    ioctl(uinputFile, UI_SET_KEYBIT, BTN_EXTRA);
 
     //register all keyboard keys
     for (int i = KEY_ESC; i < KEY_MAX; i++)
     {
-        ioctl(fd, UI_SET_KEYBIT, i);
+        //add key
+        ioctl(uinputFile, UI_SET_KEYBIT, i);
     }
 
     //register mouse wheel and relvant axies
-    ioctl(fd, UI_SET_RELBIT, REL_X);
-    ioctl(fd, UI_SET_RELBIT, REL_Y);
-    ioctl(fd, UI_SET_RELBIT, REL_WHEEL);
-    ioctl(fd, UI_SET_RELBIT, REL_HWHEEL);
+    ioctl(uinputFile, UI_SET_RELBIT, REL_X);
+    ioctl(uinputFile, UI_SET_RELBIT, REL_Y);
+    ioctl(uinputFile, UI_SET_RELBIT, REL_WHEEL);
+    ioctl(uinputFile, UI_SET_RELBIT, REL_HWHEEL);
     
     //set as virtual pointer device
-    ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_POINTER);
-    ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
+    ioctl(uinputFile, UI_SET_PROPBIT, INPUT_PROP_POINTER);
 
     //create virtual mouse
     struct uinput_setup usetup = {0};
@@ -304,11 +214,11 @@ int setup_uinput()
     usetup.id.product = 0x5678;
     strcpy(usetup.name, "virtual-mouse");
 
-    ioctl(fd, UI_DEV_SETUP, &usetup);
-    ioctl(fd, UI_DEV_CREATE);
+    ioctl(uinputFile, UI_DEV_SETUP, &usetup);
+    ioctl(uinputFile, UI_DEV_CREATE);
 
     //done
-    return fd;
+    return uinputFile;
 }
 
 //main
@@ -321,29 +231,39 @@ int main()
     loadConfig("default");
 
     //open/grab mouse as root
-    char *mouseDevice = getMouseEventID(MOUSE_NAME);
-    printf("found mouse at %s\n", mouseDevice);
-    int src_fd = open(mouseDevice, O_RDONLY);
+    char *mouseDevice = getMouseEventID(MOUSE_NAME); //get mouse by name
+    printf("found mouse at %s\n", mouseDevice); //logging
+    int mouseDeviceFile = open(mouseDevice, O_RDONLY); //open mouse
+    
+    //confirm mouse was opened correctly
+    if (mouseDeviceFile < 0) 
+    { 
+        //logging
+        fprintf(stderr, "ERROR: Could not access mouse. Exiting\n");
+        exit(1);
+    } 
+    //grab the mouse and prevent events from going to the actually device. (Prevents issue with double input)
+    if (ioctl(mouseDeviceFile, EVIOCGRAB, 1) < 0) 
+    {
+        fprintf(stderr, "ERROR: Could not grab mouse. Exiting\n");
+        exit(1); 
+    }
 
     //set up virtual device as root
-    int out_fd = setup_uinput();
+    int virtualMouse = setupVirtualMouse();
 
     //drop privileges from sudo to real user
     dropPrivileges();
 
     //start dubs thread for window listening as  user
-    pthread_t tid;
-    pthread_create(&tid, NULL, windowListener, NULL);
-
-    //start repeat thread as normal user
-    pthread_t repeat_tid;
-    pthread_create(&repeat_tid, NULL, repeat_thread, &out_fd);
+    pthread_t windoListenerTid;
+    pthread_create(&windoListenerTid, NULL, windowListener, NULL);
 
     //holds incoming input
     struct input_event ev;
 
     //read input from actual mouse
-    while (read(src_fd, &ev, sizeof(ev)) == sizeof(ev)) 
+    while (read(mouseDeviceFile, &ev, sizeof(ev)) == sizeof(ev)) 
     {
         //var for checking if current key is remapped or not
         int remapped = 0;
@@ -356,12 +276,6 @@ int main()
             {
                 //invert var
                 layerShiftActive = !layerShiftActive;
-
-                //stop repeating current key TODO not sure if I should keep this or not
-                pthread_mutex_lock(&repeat_mutex);
-                repeat_key = -1;
-                pthread_cond_signal(&repeat_cond);
-                pthread_mutex_unlock(&repeat_mutex);
             }
             
             //end this loop run
@@ -373,12 +287,6 @@ int main()
         {
             //active while held
             layerShiftActive = ev.value;
-
-            //stop repeating current key TODO not sure if I should keep this or not
-            pthread_mutex_lock(&repeat_mutex);
-            repeat_key = -1;
-            pthread_cond_signal(&repeat_cond);
-            pthread_mutex_unlock(&repeat_mutex);
 
             //end this loop run here
             continue;
@@ -394,44 +302,32 @@ int main()
             struct mapping *currentMapping = &mappings[i];
 
             //skip mappings that are not part of current layer
-            if (currentMapping->layer_shifted != layerShiftActive) continue;
-
-            //check to see if current key event is currently remapped
-            if (ev.type == EV_KEY && currentMapping->from_type == EV_KEY && ev.code == currentMapping->from_code) 
+            if (currentMapping->layer_shifted != layerShiftActive) 
             {
-                //key down
-                if (ev.value == 1)
-                {
-                    //check to see if marco. We use negatives for marco so easy to check
-                    if (currentMapping->to_key < 0)
-                    {
-                        //run marco
-                        doMacro(out_fd, currentMapping->to_key);
-                    }
-                    //not an marco
-                    else
-                    {
-                        //start repeating
-                        pthread_mutex_lock(&repeat_mutex);
-                        repeat_key = currentMapping->to_key;
-                        repeat_restart = 1;
-                        pthread_cond_signal(&repeat_cond);
-                        pthread_mutex_unlock(&repeat_mutex);
-                    }
-                }
-                //key up
-                else if (ev.value == 0)
-                {
-                    //button released stop repeating
-                    pthread_mutex_lock(&repeat_mutex);
-                    repeat_key = -1;
-                    pthread_mutex_unlock(&repeat_mutex);
-                }
+                //skip to next for loop run
+                continue;
+            }
 
-                //update var
+            //check to see if rempped key is being pushed
+            if (ev.type == EV_KEY && currentMapping->from_type == EV_KEY && ev.code == currentMapping->from_code)
+            {
+                //check to see if not a macro
+                if (currentMapping->to_key >= 0)
+                {
+                    //send key along with currnet key state
+                    sendInput(virtualMouse, EV_KEY, currentMapping->to_key, ev.value);
+                    sendInput(virtualMouse, EV_SYN, SYN_REPORT, 0);
+                }
+                //macro so only run on key down
+                else if (ev.value == 1)
+                {
+                    //run macro on key down only
+                    doMacro(virtualMouse, currentMapping->to_key);
+                }
+                //update var to prevent sending orignal key
                 remapped = 1;
 
-                //end loop
+                //end for loop
                 break;
             }
 
@@ -439,9 +335,9 @@ int main()
             if (ev.type == EV_REL && currentMapping->from_type == EV_REL && ev.code == currentMapping->from_code && ev.value == currentMapping->from_value) 
             {
                 //matches so get remap key and send it
-                send_key(out_fd, currentMapping->to_key);
-                remapped = 1; //update var
-                break; //done
+                send_key(virtualMouse, currentMapping->to_key);
+                remapped = 1; //update var to prevent sending orignal key
+                break; //end for loop
             }
         }
         //unlock configuration can be swapped
@@ -451,14 +347,14 @@ int main()
         if (!remapped)
         {
             //was not remapped so just send the key event as normal to the virtual device
-            write(out_fd, &ev, sizeof(ev));
+            write(virtualMouse, &ev, sizeof(ev));
         }
     }
 
     //clean up program and exit if input device is lost
-    ioctl(out_fd, UI_DEV_DESTROY);
-    close(out_fd);
-    close(src_fd);
+    ioctl(virtualMouse, UI_DEV_DESTROY);
+    close(virtualMouse);
+    close(mouseDeviceFile);
     freeMappings();
     return 0;
 }
