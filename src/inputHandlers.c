@@ -1,10 +1,13 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/5/2026
+Last Update: 3/6/2026
 */
 
 //standard includes
-#include <unistd.h> //write
+#include <unistd.h>
+#include <pthread.h>
+#include <linux/input.h>
+#include <linux/uinput.h>
 
 //file imports
 #include "../headers/inputHandlers.h"

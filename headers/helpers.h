@@ -1,18 +1,10 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/5/2026
+Last Update: 3/6/2026
 */
 
 #ifndef HELPERS_H
 #define HELPERS_H
-
-//includes
-#include <stdio.h> //printing
-#include <stdlib.h> //exit/free
-#include <unistd.h> //file reading
-#include <dirent.h> //directory reading
-#include <pwd.h> //user info
-#include <grp.h> //groups
 
 //method to clean the array and other vars. Garbage collection
 void freeMappings();

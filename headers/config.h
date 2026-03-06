@@ -1,18 +1,18 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/5/2026
+Last Update: 3/6/2026
 */
 
 #ifndef CONFIG_H
 #define CONFIG_H
 
-//includes
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
-//functions
+//for reading configurations file
 void readConfig(FILE *configurationFileData);
-void loadConfig(const char *appName);
+
+//for getting configuration files
+void loadConfig(const char *appName); 
+
+//Note arg is needed here despite not being used.
+void *windowListener(void *arg);
 
 #endif

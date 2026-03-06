@@ -1,27 +1,30 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/5/2026
+Last Update: 3/6/2026
 */
 
 //standard includes
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <pwd.h>
+#include <grp.h>
 #include <sys/stat.h>
-#include <string.h>
 
 //file includes
-#include "../headers/helpers.h"
 #include "../headers/vars.h"
 
 //method to clean the array and other vars. Garbage collection
 void freeMappings()
 {
-    free(mappings);
-    mappings = NULL;
-    mapping_count = 0;
-    mapping_capacity = 0;
-    layer_toggle_button = -1;
-    layer_hold_button = -1;
-    layerShiftActive = 0;
+    free(BUTTON_MAPPINGS);
+    BUTTON_MAPPINGS = NULL;
+    BUTTON_MAPPINGS_AMOUNT = 0;
+    BUTTON_MAPPING_ARRAY_SIZE = 0;
+    LAYER_TOGGLE_BUTTON = -1;
+    LAYER_HOLD_BUTTON = -1;
+    LAYER_SHIFT_ACTIVE = 0;
 }
 
 //helper method to drop privileges back to user who called sudo
