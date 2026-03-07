@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/6/2026
+Last Update: 3/7/2026
 */
 
 //includes
@@ -19,6 +19,7 @@ Last Update: 3/6/2026
 #include "../headers/helpers.h"
 #include "../headers/inputHandlers.h"
 #include "../headers/mouse.h"
+#include "../headers/settings.h"
 
 //main
 int main() 
@@ -26,30 +27,46 @@ int main()
     //inital preq check
     setupCheck();
 
-    //load default config
-    loadConfig("default");
+    //check to see if presistant mode is enabled
+    if(PERSISTENT_MODE == 1)
+    {
+        //logging
+        printf("loading last used profile\n");
+
+        //load last used persistent profile
+        loadConfig(PERSISTENT_PROFILE);
+    }
+    //not enabled
+    else
+    {
+        //logging
+        printf("loading default profile\n");
+
+        //load default config
+        loadConfig("default");
+    }
 
     //open/grab mouse as root
     char *mouseDevice = getMouseEventID(MOUSE_NAME); //get mouse by name
     printf("found mouse at %s\n", mouseDevice); //logging
-    int mouseDeviceFile = open(mouseDevice, O_RDONLY); //open mouse
+    int MOUSEDEVICEFILE = open(mouseDevice, O_RDONLY); //open mouse
     
     //confirm mouse was opened correctly
-    if (mouseDeviceFile < 0) 
+    if (MOUSEDEVICEFILE < 0) 
     { 
         //logging
         fprintf(stderr, "ERROR: Could not access mouse. Exiting\n");
         exit(1);
     } 
     //grab the mouse and prevent events from going to the actually device. (Prevents issue with double input)
-    if (ioctl(mouseDeviceFile, EVIOCGRAB, 1) < 0) 
+    if (ioctl(MOUSEDEVICEFILE, EVIOCGRAB, 1) < 0) 
     {
         fprintf(stderr, "ERROR: Could not grab mouse. Exiting\n");
         exit(1); 
     }
 
     //set up virtual device as root
-    int virtualMouse = setupVirtualMouse();
+    VIRTUALMOUSE = setupVirtualMouse();
 
     //drop privileges from sudo to real user
     dropPrivileges();
@@ -62,7 +79,7 @@ int main()
     struct input_event ev;
 
     //read input from actual mouse
-    while (read(mouseDeviceFile, &ev, sizeof(ev)) == sizeof(ev)) 
+    while (read(MOUSEDEVICEFILE, &ev, sizeof(ev)) == sizeof(ev)) 
     {
         //var for checking if current key is remapped or not
         int remapped = 0;
@@ -90,12 +107,15 @@ int main()
             continue;
         }
 
+        //lock so configuration cannot be swapped
+        pthread_mutex_lock(&BUTTON_MAPPINGS_MUTEX);
+
         //handle key release even if layer has shifted
         if (ev.type == EV_KEY && ev.value == 0 && HELD_KEY != -1)
         {
             //send stored held key along with current state
-            sendInput(virtualMouse, EV_KEY, HELD_KEY, 0);
-            sendInput(virtualMouse, EV_SYN, SYN_REPORT, 0);
+            sendInput(VIRTUALMOUSE, EV_KEY, HELD_KEY, 0);
+            sendInput(VIRTUALMOUSE, EV_SYN, SYN_REPORT, 0);
             
             //reset var
             HELD_KEY = -1;
@@ -103,9 +123,6 @@ int main()
             //update var
             remapped = 1;
         }
-
-        //lock so configuration cannot be swapped
-        pthread_mutex_lock(&BUTTON_MAPPINGS_MUTEX);
 
         //loop through all active buttonMappings
         for (int i = 0; i < BUTTON_MAPPINGS_AMOUNT; i++) 
@@ -139,14 +156,14 @@ int main()
                     }
 
                     //send key along with currnet key state
-                    sendInput(virtualMouse, EV_KEY, currentMapping->to_key, ev.value);
-                    sendInput(virtualMouse, EV_SYN, SYN_REPORT, 0);
+                    sendInput(VIRTUALMOUSE, EV_KEY, currentMapping->to_key, ev.value);
+                    sendInput(VIRTUALMOUSE, EV_SYN, SYN_REPORT, 0);
                 }
                 //macro so only run on key down
                 else if (ev.value == 1)
                 {
                     //run macro on key down only
-                    doMacro(virtualMouse, currentMapping->to_key);
+                    doMacro(VIRTUALMOUSE, currentMapping->to_key);
                 }
                 //update var to prevent sending orignal key
                 remapped = 1;
@@ -159,7 +176,7 @@ int main()
             if (ev.type == EV_REL && currentMapping->from_type == EV_REL && ev.code == currentMapping->from_code && ev.value == currentMapping->from_value) 
             {
                 //matches so get remap key and send it
-                send_key(virtualMouse, currentMapping->to_key);
+                send_key(VIRTUALMOUSE, currentMapping->to_key);
                 remapped = 1; //update var to prevent sending orignal key
                 break; //end for loop
             }
@@ -171,14 +188,14 @@ int main()
         if (!remapped)
         {
             //was not remapped so just send the key event as normal to the virtual device
-            write(virtualMouse, &ev, sizeof(ev));
+            write(VIRTUALMOUSE, &ev, sizeof(ev));
         }
     }
 
     //clean up program and exit if input device is lost
-    ioctl(virtualMouse, UI_DEV_DESTROY);
-    close(virtualMouse);
-    close(mouseDeviceFile);
+    ioctl(VIRTUALMOUSE, UI_DEV_DESTROY);
+    close(VIRTUALMOUSE);
+    close(MOUSEDEVICEFILE);
     freeMappings();
     return 0;
 }
