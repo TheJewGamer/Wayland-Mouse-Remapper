@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/6/2026
+Last Update: 3/7/2026
 */
 
 //includes
@@ -10,12 +10,16 @@ Last Update: 3/6/2026
 #include <dirent.h>
 #include <pthread.h>
 #include <dbus/dbus.h> 
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <linux/uinput.h>
 
 //file imports
 #include "../headers/config.h"
 #include "../headers/bindings.h"
 #include "../headers/vars.h"
 #include "../headers/helpers.h"
+#include "../headers/settings.h"
 
 //method to parse BUTTON_MAPPINGS from provided configuration file
 void readConfig(FILE *configurationFileData)
@@ -87,12 +91,12 @@ void readConfig(FILE *configurationFileData)
 
         //vars
         struct buttonMapping currentMapping;
-        currentMapping.from_code = mouseKey(fromKey, &currentMapping.from_type, &currentMapping.from_value); //convet to mouse key
+        currentMapping.from_code = parseFromKey(fromKey, &currentMapping.from_type, &currentMapping.from_value); //convet to mouse key
         currentMapping.to_key = keyboardKey(toKey); //convert to key code
         currentMapping.layer_shifted = inLayerShiftSection; //set if in layershift
 
         //confirm valid key/mouse codes
-        if (currentMapping.from_code < 0 || currentMapping.to_key < 0)
+        if (currentMapping.from_code == -1 || currentMapping.to_key == -1)
         {
             //logging
             fprintf(stderr, "ERROR: unknown mapping: %s=%s\n", fromKey, toKey);
@@ -147,10 +151,13 @@ void loadConfig(const char *appName)
     while ((entry = readdir(configurationFolder)) != NULL)
     {
         //skip default.conf
-        if (strcmp(entry->d_name, "default.conf") == 0) continue;
-
+        if (strcmp(entry->d_name, "default.conf") == 0)
+        {
+            //go to next while loop run
+            continue;
+        }
         //check if appName is contained in filename of current configuration file
-        if (strstr(entry->d_name, appName))
+        else if (strstr(entry->d_name, appName))
         {
             //build full path to configuration file if name matches
             snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/%s", HOMEPATH, entry->d_name);
@@ -292,10 +299,21 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
                 //lock mapping array when changing things
                 pthread_mutex_lock(&BUTTON_MAPPINGS_MUTEX);
                 
+                //load config
                 loadConfig(appName);
 
                 //unlock the mapping array as done
                 pthread_mutex_unlock(&BUTTON_MAPPINGS_MUTEX);
+
+                //check to see if persistent mode is enabled
+                if (PERSISTENT_MODE == 1)
+                {
+                    //update global var
+                    strncpy(PERSISTENT_PROFILE, appName, sizeof(PERSISTENT_PROFILE));
+                    
+                    //save to settings file
+                    saveSettings();
+                }
             }
         }
         //check to see if interface called to set SetPersistentMode
@@ -316,9 +334,28 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
                 //update var
                 PERSISTENT_MODE = enabled;
 
+                //save changes to settings file
+                saveSettings();
+
                 //logging
                 printf("persistent mode: %s\n", PERSISTENT_MODE ? "on" : "off");
             }
+        }
+        //check to see if interfacet called to exit program
+        else if(dbus_message_is_method_call(windowListenerInput, DBUS_IFACE, "Stop"))
+        {
+            //logging
+            printf("stop command recived. Stoping program\n");
+
+            //clean up
+            dbus_message_unref(windowListenerInput);
+            ioctl(VIRTUALMOUSE, UI_DEV_DESTROY);
+            close(VIRTUALMOUSE);
+            close(MOUSEDEVICEFILE);
+            freeMappings();
+
+            //exit
+            exit(0);
         }
 
         //remove the current message garabge collection

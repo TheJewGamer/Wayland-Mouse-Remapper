@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/6/2026
+Last Update: 3/7/2026
 */
 
 //includes
@@ -32,8 +32,12 @@ int LAYER_SHIFT_ACTIVE = 0;
 int HELD_KEY = -1;
 
 //misc vars
-char MOUSE_NAME[] = "Razer Razer Mouse Dock Pro"; //used to get the event ID of the device TODO: update this so that it can be changed by the UI in the future
+char MOUSE_NAME[256] = "NOT SET - ERROR"; //used to get the event ID of the device
+char PERSISTENT_PROFILE[256] = "";
 const char *USER = NULL;
+int VIRTUALMOUSE = -1;
+int MOUSEDEVICEFILE = -1;
+
 
 //path vars
 const char *HOMEPATH = NULL;

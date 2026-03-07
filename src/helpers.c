@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/6/2026
+Last Update: 3/7/2026
 */
 
 //standard includes
@@ -11,9 +11,11 @@ Last Update: 3/6/2026
 #include <pwd.h>
 #include <grp.h>
 #include <sys/stat.h>
+#include <string.h>
 
 //file includes
 #include "../headers/vars.h"
+#include "../headers/settings.h"
 
 //method to clean the array and other vars. Garbage collection
 void freeMappings()
@@ -91,6 +93,19 @@ void setupCheck()
     {
         //logging
         fprintf(stderr, "ERROR: Default configuration file does not exist. Please create one\n");
+        exit(1);
+    }
+
+    //load saved settings
+    loadSettings();
+
+    //confirm that mouse name is not empty
+    if(strcmp(MOUSE_NAME, "NOT SET - ERROR") == 0)
+    {
+        //logging
+        fprintf(stderr, "ERROR: MOUSE_NAME var not set in settings file. Please set the name of the mouse to remap\n");
+
+        //quit program
         exit(1);
     }
 }
