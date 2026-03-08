@@ -11,3 +11,8 @@ void send_key(int fd, int key);
 
 //method to send macros
 void doMacro(int fd, int macro);
+
+void processEvent(struct input_event ev);
+
+//thread to read input
+void *inputReader(void *deviceFileInput);

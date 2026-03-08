@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/7/2026
+Last Update: 3/8/2026
 */
 
 //includes
@@ -12,6 +12,7 @@ Last Update: 3/7/2026
 #include <linux/input.h>
 #include <linux/uinput.h>
 #include <sys/ioctl.h>
+#include <string.h>
 
 //file imports
 #include "../headers/vars.h"
@@ -30,8 +31,11 @@ int main()
     //check to see if presistant mode is enabled
     if(PERSISTENT_MODE == 1)
     {
-        //logging
-        printf("loading last used profile\n");
+        
+        #if (DEBUG)
+            //logging
+            printf("loading last used profile\n");
+        #endif
 
         //load last used persistent profile
         loadConfig(PERSISTENT_PROFILE);
@@ -39,163 +43,135 @@ int main()
     //not enabled
     else
     {
-        //logging
-        printf("loading default profile\n");
+        #if (DEBUG)
+            //logging
+            printf("loading default profile\n");
+        #endif
 
         //load default config
         loadConfig("default");
     }
 
     //open/grab mouse as root
-    char *mouseDevice = getMouseEventID(MOUSE_NAME); //get mouse by name
-    printf("found mouse at %s\n", mouseDevice); //logging
-    int MOUSEDEVICEFILE = open(mouseDevice, O_RDONLY); //open mouse
+    char *mouseDevice = getMouseEventID(MOUSE_PHYS); //get mouse by name
+    MOUSEDEVICEFILE = open(mouseDevice, O_RDONLY); //open mouse
+    
+    #if(DEBUG)
+        //logging
+        printf("found mouse at %s\n", mouseDevice);
+    #endif
     
     //confirm mouse was opened correctly
     if (MOUSEDEVICEFILE < 0) 
-    { 
+    {
         //logging
         fprintf(stderr, "ERROR: Could not access mouse. Exiting\n");
+
+        //stop script
         exit(1);
     } 
     //grab the mouse and prevent events from going to the actually device. (Prevents issue with double input)
     if (ioctl(MOUSEDEVICEFILE, EVIOCGRAB, 1) < 0) 
     {
+        //logging
         fprintf(stderr, "ERROR: Could not grab mouse. Exiting\n");
+
+        //stop script
         exit(1); 
+    }
+
+    //get mouse keyboard if needed
+    int MOUSEKEYBOARDFILE = -1;
+
+    //check to see if mouse keyboard setting is filled out
+    if(strlen(MOUSE_KEYBOARD_PHYS) > 0)
+    {
+        #if(DEBUG)
+            //logging
+            printf("Mouse keyboard setting set starting setup\n");
+        #endif
+
+            //vars
+            char *mouseKeyboardDevice = getMouseEventID(MOUSE_KEYBOARD_PHYS); //get mouse keyboard by name
+            MOUSEKEYBOARDFILE = open(mouseKeyboardDevice, O_RDONLY); //open mouse keyboard
+
+            #if(DEBUG)
+                //logging
+                printf("found mouse keyboard at %s\n", mouseKeyboardDevice);
+            #endif
+
+            //confirm mouse keyboard was opened correctly
+            if (MOUSEKEYBOARDFILE < 0) 
+            {
+                //logging
+                fprintf(stderr, "ERROR: Could not access mouse keyboard. Exiting\n");
+
+                //stop script
+                exit(1);
+            } 
+            //grab the mouse and prevent events from going to the actually device. (Prevents issue with double input)
+            if (ioctl(MOUSEKEYBOARDFILE, EVIOCGRAB, 1) < 0) 
+            {
+                //logging
+                fprintf(stderr, "ERROR: Could not grab mouse keyboard. Exiting\n");
+
+                //stop script
+                exit(1); 
+            }
+    }
+    //mouse keyboard setting not filled out
+    else
+    {
+        #if(DEBUG)
+        //logging
+            printf("Mouse Keyboard setting not filled out. Skipping mouse keyboard setup.");
+        #endif
     }
 
     //set up virtual device as root
     VIRTUALMOUSE = setupVirtualMouse();
 
-    //drop privileges from sudo to real user
-    dropPrivileges();
-
     //start dubs thread for window listening as  user
-    pthread_t windoListenerTid;
-    pthread_create(&windoListenerTid, NULL, windowListener, NULL);
+    pthread_t windowListenerThread;
+    pthread_create(&windowListenerThread, NULL, windowListener, NULL);
 
-    //holds incoming input
-    struct input_event ev;
+    #if (DEBUG)
+        //logging
+        printf("Starting standard mouse thread\n");
+    #endif
 
-    //read input from actual mouse
-    while (read(MOUSEDEVICEFILE, &ev, sizeof(ev)) == sizeof(ev)) 
+    //start standard mouse thread
+    pthread_t mouseThread;
+    pthread_create(&mouseThread, NULL, inputReader, &MOUSEDEVICEFILE);
+
+    //check to see if keyboard file is loaded
+    if (MOUSEKEYBOARDFILE != -1)
     {
-        //var for checking if current key is remapped or not
-        int remapped = 0;
+        #if (DEBUG)
+            //logging
+            printf("mouse keyboard present. Starting mouse keyboard thread.\n");
+        #endif
 
-        //check to see if layershift toggle button is pressed
-        if (ev.type == EV_KEY && ev.code == LAYER_TOGGLE_BUTTON)
-        {
-            //key down only
-            if (ev.value == 1)
-            {
-                //invert var
-                LAYER_SHIFT_ACTIVE = !LAYER_SHIFT_ACTIVE;
-            }
-            
-            //end this loop run
-            continue;
-        }
-        //check to see if layershift hold button is pressed
-        else if (ev.type == EV_KEY && ev.code == LAYER_HOLD_BUTTON)
-        {
-            //active while held
-            LAYER_SHIFT_ACTIVE = ev.value;
-
-            //end this loop run here
-            continue;
-        }
-
-        //lock so configuration cannot be swapped
-        pthread_mutex_lock(&BUTTON_MAPPINGS_MUTEX);
-
-        //handle key release even if layer has shifted
-        if (ev.type == EV_KEY && ev.value == 0 && HELD_KEY != -1)
-        {
-            //send stored held key along with current state
-            sendInput(VIRTUALMOUSE, EV_KEY, HELD_KEY, 0);
-            sendInput(VIRTUALMOUSE, EV_SYN, SYN_REPORT, 0);
-            
-            //reset var
-            HELD_KEY = -1;
-
-            //update var
-            remapped = 1;
-        }
-
-        //loop through all active buttonMappings
-        for (int i = 0; i < BUTTON_MAPPINGS_AMOUNT; i++) 
-        {
-            //var
-            struct buttonMapping *currentMapping = &BUTTON_MAPPINGS[i];
-
-            //skip buttonMappings that are not part of current layer
-            if (currentMapping->layer_shifted != LAYER_SHIFT_ACTIVE) 
-            {
-                //skip to next for loop run
-                continue;
-            }
-
-            //check to see if rempped key is being pushed
-            if (ev.type == EV_KEY && currentMapping->from_type == EV_KEY && ev.code == currentMapping->from_code)
-            {
-                //check to see if not a macro
-                if (currentMapping->to_key >= 0)
-                {
-                    //tracking held key to prevent layer shift issues
-                    if (ev.value == 1)
-                    {
-                        //set var
-                        HELD_KEY = currentMapping->to_key;
-                    }
-                    else if (ev.value == 0)
-                    {  
-                        // reset var
-                        HELD_KEY = -1;
-                    }
-
-                    //send key along with currnet key state
-                    sendInput(VIRTUALMOUSE, EV_KEY, currentMapping->to_key, ev.value);
-                    sendInput(VIRTUALMOUSE, EV_SYN, SYN_REPORT, 0);
-                }
-                //macro so only run on key down
-                else if (ev.value == 1)
-                {
-                    //run macro on key down only
-                    doMacro(VIRTUALMOUSE, currentMapping->to_key);
-                }
-                //update var to prevent sending orignal key
-                remapped = 1;
-
-                //end for loop
-                break;
-            }
-
-            //check to see if scroll event and is currently remapped
-            if (ev.type == EV_REL && currentMapping->from_type == EV_REL && ev.code == currentMapping->from_code && ev.value == currentMapping->from_value) 
-            {
-                //matches so get remap key and send it
-                send_key(VIRTUALMOUSE, currentMapping->to_key);
-                remapped = 1; //update var to prevent sending orignal key
-                break; //end for loop
-            }
-        }
-        //unlock configuration can be swapped
-        pthread_mutex_unlock(&BUTTON_MAPPINGS_MUTEX);
-
-        //check to see if key was remapped or not
-        if (!remapped)
-        {
-            //was not remapped so just send the key event as normal to the virtual device
-            write(VIRTUALMOUSE, &ev, sizeof(ev));
-        }
+        //file is present so start thread for mouse keyboard as well
+        pthread_t mouseKeyboardThread;
+        pthread_create(&mouseKeyboardThread, NULL, inputReader, &MOUSEKEYBOARDFILE);
     }
+    else
+    {
+        #if (DEBUG)
+        //logging
+            printf("mouse keyboard not present.\n");
+        #endif
+    }
+
+    //wait for mouse reader thread to exit
+    pthread_join(mouseThread, NULL);
 
     //clean up program and exit if input device is lost
     ioctl(VIRTUALMOUSE, UI_DEV_DESTROY);
     close(VIRTUALMOUSE);
     close(MOUSEDEVICEFILE);
+    close(MOUSEKEYBOARDFILE);
     freeMappings();
     return 0;
 }

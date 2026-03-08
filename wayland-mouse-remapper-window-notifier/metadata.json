@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Name": "Wayland Mouse Remapper Window Notifier",
+        "Description": "KWIN scirpt that is used to send window names to the wayland-mouse-remapper scirpt",
+        "Version": "1.0",
+        "Id": "wayland-mouse-remapper-window-notifier",
+        "License": "GPL-2.0-or-later",
+        "Website": "https://github.com/TheJewGamer/Wayland-Mouse-Remapper",
+        "Authors": [{"Name": "TheJewGamer"}]
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js",
+    "KPackageStructure": "KWin/Script"
+}

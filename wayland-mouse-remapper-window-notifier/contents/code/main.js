@@ -1,7 +1,9 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/1/2026
+Last Update: 3/8/2026
 */
+
+print("wayland-mouse-remapper-window-notifier: script started");
 
 // run when window is activated
 workspace.windowActivated.connect(function (window) {
@@ -25,9 +27,6 @@ workspace.windowActivated.connect(function (window) {
     {
         appName = window.caption;
     }
-
-    // Logging
-    print("Focused changed to: " + appName);
 
     //pipe to access other script
     callDBus(

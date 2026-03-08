@@ -7,7 +7,7 @@ SRCS   := $(wildcard src/*.c)
 
 # output location
 BINDIR := bin
-TARGET := $(BINDIR)/mouse-remap
+TARGET := $(BINDIR)/wayland-mouse-remapper
 
 # put object files in bin when created
 OBJS   := $(patsubst src/%.c,$(BINDIR)/%.o,$(SRCS))

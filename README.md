@@ -13,14 +13,14 @@ I recently switched to linux and needed a solution to program the side buttons o
 The list of keys that can be used can be seen in the bindings.c file.
 
 # Configuration
-Configurations files are stored at ~/.config/mouse-remap/ and should be the name of the app/window you want to remap. Example configuration files can be found in the configurations folder
+Configurations files are stored at ~/.config/wayland-mouse-remapper/ and should be the name of the app/window you want to remap.
 
 # Requirements
 - Linux
     - I used CachyOS so any arch derivative should work
 - Wayland
 - KDE Plasama
-    - Spefically built on Plasma 6
+    - Specifically built on Plasma 6
 
 ## Other Window Managers
 You can use this without KDE but the automatic profile switching will not work.
@@ -29,22 +29,27 @@ You can use this without KDE but the automatic profile switching will not work.
 You should be able to patch this program to work with other window manager's very easily as all you need to do is send the window name to the dbus. If people actually use this feel free to make a feature request and I will see what I can do.
 
 # Building
-- Copy the repo and just run make run
-- Would recommend putting the complied file in your startup so it launches on boot
+- Copy the repo, extract it and run the setup.sh file. This handles the setup and can also be used to update the binary if needed. You can delete the extracted files after running the setup file.
 
 # DBUS Commands
 The script uses dbus for communication between the KWIN script and the acutal program. You can also send commands via this to set settings. 
 
-## Commands
+## Script Commands
 - Set Persistent Mode on or off. This prevents the program from switching profiles based on the current active window.
     - Enable
-        - dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.SetPersistentMode boolean:true
+        - ```dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.SetPersistentMode boolean:true```
     - Disable
-        - dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.SetPersistentMode boolean:false
+        - ```dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.SetPersistentMode boolean:false```
 - Set current Configuration file to use. Note that if you have persitent mode off and are using the KWIN script this will get overwritten
-    - dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.SetConfig string:"app"
+    - ```dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.SetConfig string:"app"```
 - Exit the program
-    - dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.Stop
+    - ```dbus-send --session --type=method_call --dest=org.mouse.remap /org/mouse/remap org.mouse.remap.Stop```
+
+## Logs
+- You can view logs by using: ```journalctl --user -u wayland-mouse-remapper -f```
+    - Note that logs are turned off by default expect on errors. You can enable them by setting the DEBUG variables in the vars.h file to 1. Then run the setup.sh file
+- You can view the status of the program via: ```systemctl --user status wayland-mouse-remapper```
+- You can view the status of the kwin script via: ```kreadconfig6 --file kwinrc --group Plugins --key "wayland-mouse-remapper-window-notifierEnabled"```
 
 # Future Plans
 Might make a simple UI to assist in creating configuration files. We shall see.

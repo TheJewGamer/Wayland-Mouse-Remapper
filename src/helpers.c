@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/7/2026
+Last Update: 3/8/2026
 */
 
 //standard includes
@@ -29,31 +29,11 @@ void freeMappings()
     LAYER_SHIFT_ACTIVE = 0;
 }
 
-//helper method to drop privileges back to user who called sudo
-void dropPrivileges()
-{
-    //var
-    struct passwd *userInfo = getpwnam(USER);
-
-    //drop supplementary groups gid then uid
-    if (initgroups(USER, userInfo->pw_gid) < 0) { perror("initgroups"); exit(1); }
-    if (setgid(userInfo->pw_gid) < 0) { perror("setgid"); exit(1); }
-    if (setuid(userInfo->pw_uid) < 0) { perror("setuid"); exit(1); }
-}
-
 //helper function to check that needed things are done when called. Prevents launches that could cause errors
 void setupCheck()
 {
     //set user var. Needs to be done first as using in a lot of places and will crash program if not set
-    USER = getenv("SUDO_USER");
-
-    //check to see if running as sudo
-    if(!USER)
-    {
-        //not running as sudo user print error and kill script
-        fprintf(stderr, "ERROR: Script not run with sudo. Please relaunch using sudo\n"); //logging
-        exit(1);
-    }
+    USER = getenv("USER");
 
     //check to see if home directory can be found
     struct passwd *userInfo = getpwnam(USER); //get user info by looking up the password database (password are not stored here so safe)
@@ -66,19 +46,24 @@ void setupCheck()
     else
     {   
         //logging
-        fprintf(stderr, "ERROR: Could not find home directory of the non sudo user.\n");
+        fprintf(stderr, "ERROR: Could not find home directory\n");
+        
+        //exit script
         exit(1);
     }
 
     //check to see if we can get the configuration directory
 
     //get configuration path
-    snprintf(CONFIGURATIONFOLDERPATH, sizeof(CONFIGURATIONFOLDERPATH), "%s/.config/mouse-remap", HOMEPATH);
+    snprintf(CONFIGURATIONFOLDERPATH, sizeof(CONFIGURATIONFOLDERPATH), "%s/.config/wayland-mouse-remapper", HOMEPATH);
 
     //confirm the path exists
     if (!opendir(CONFIGURATIONFOLDERPATH))
     {
-        fprintf(stderr, "ERROR: Could not find configuration folder. Please create at the following location under your user profile: ~/.config/mouse-remap");
+        //logging
+        fprintf(stderr, "ERROR: Could not find configuration folder. Please create at the following location under your user profile: ~/.config/wayland-mouse-remapper or run the setup script.");
+        
+        //exit script
         exit(1);
     }
 
@@ -86,24 +71,26 @@ void setupCheck()
 
     //vars
     char defaultConfigurationFilePath[512];
-    snprintf(defaultConfigurationFilePath, sizeof(defaultConfigurationFilePath), "%s/.config/mouse-remap/default.conf", HOMEPATH);
+    snprintf(defaultConfigurationFilePath, sizeof(defaultConfigurationFilePath), "%s/.config/wayland-mouse-remapper/default.conf", HOMEPATH);
     struct stat buffer;
     
     if (stat(defaultConfigurationFilePath, &buffer) != 0)
     {
         //logging
-        fprintf(stderr, "ERROR: Default configuration file does not exist. Please create one\n");
+        fprintf(stderr, "ERROR: Default configuration file does not exist. Please run the setup script.\n");
+        
+        //exit script
         exit(1);
     }
 
     //load saved settings
     loadSettings();
 
-    //confirm that mouse name is not empty
-    if(strcmp(MOUSE_NAME, "NOT SET - ERROR") == 0)
+    //confirm that mouse setting is not empty
+    if(strlen(MOUSE_PHYS) <= 0)
     {
         //logging
-        fprintf(stderr, "ERROR: MOUSE_NAME var not set in settings file. Please set the name of the mouse to remap\n");
+        fprintf(stderr, "ERROR: MOUSE_PHYS var not set in settings file. Please run the setup script to set this var.\n");
 
         //quit program
         exit(1);
