@@ -21,6 +21,8 @@ void sendInput(int deviceFile, int eventType, int keyCode, int keyState)
     ev.type = eventType;
     ev.code = keyCode;
     ev.value = keyState;
+
+    //write to device
     write(deviceFile, &ev, sizeof(ev));
 }
 
@@ -89,8 +91,11 @@ void processEvent(struct input_event ev)
     //handle key release even if layer has shifted
     if (ev.type == EV_KEY && ev.value == 0 && HELD_KEY != -1)
     {
+        //send input
         sendInput(VIRTUALMOUSE, EV_KEY, HELD_KEY, 0);
         sendInput(VIRTUALMOUSE, EV_SYN, SYN_REPORT, 0);
+
+        //update vars
         HELD_KEY = -1;
         remapped = 1;
     }
@@ -98,39 +103,62 @@ void processEvent(struct input_event ev)
     //loop through all active buttonMappings
     for (int i = 0; i < BUTTON_MAPPINGS_AMOUNT; i++)
     {
+        //var
         struct buttonMapping *currentMapping = &BUTTON_MAPPINGS[i];
 
         //skip buttonMappings that are not part of current layer
-        if (currentMapping->layer_shifted != LAYER_SHIFT_ACTIVE) continue;
+        if (currentMapping->layer_shifted != LAYER_SHIFT_ACTIVE)
+        {
+            //go to next run of for loop
+            continue;
+        }
 
         //check to see if remapped key is being pushed
         if (ev.type == EV_KEY && currentMapping->from_type == EV_KEY && ev.code == currentMapping->from_code)
         {
-            //check to see if not a macro
+            //check to see if not a macro (marcos are negative key codes)
             if (currentMapping->to_key >= 0)
             {
+                //key is down
                 if (ev.value == 1)
+                {
+                    //update globlal held key var to prevent issues
                     HELD_KEY = currentMapping->to_key;
+                }
+                //key is up
                 else if (ev.value == 0)
+                {
+                    //update var
                     HELD_KEY = -1;
+                }
 
+                //send input
                 sendInput(VIRTUALMOUSE, EV_KEY, currentMapping->to_key, ev.value);
                 sendInput(VIRTUALMOUSE, EV_SYN, SYN_REPORT, 0);
             }
             //macro so only run on key down
             else if (ev.value == 1)
             {
+                //send macro
                 doMacro(VIRTUALMOUSE, currentMapping->to_key);
             }
+            //update var
             remapped = 1;
+
+            //end for loop
             break;
         }
 
         //check to see if scroll event and is currently remapped
         if (ev.type == EV_REL && currentMapping->from_type == EV_REL && ev.code == currentMapping->from_code && ev.value == currentMapping->from_value)
         {
+            //send input
             send_key(VIRTUALMOUSE, currentMapping->to_key);
+            
+            //update var
             remapped = 1;
+
+            //end for loop
             break;
         }
     }
@@ -141,6 +169,7 @@ void processEvent(struct input_event ev)
     //check to see if key was remapped or not
     if (!remapped)
     {
+        //not remapped key so just send input as normal
         write(VIRTUALMOUSE, &ev, sizeof(ev));
     }
 }
