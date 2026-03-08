@@ -20,7 +20,7 @@ Configurations files are stored at ~/.config/wayland-mouse-remapper/ and should 
     - I used CachyOS so any arch derivative should work
 - Wayland
 - KDE Plasama
-    - Spefically built on Plasma 6
+    - Specifically built on Plasma 6
 
 ## Other Window Managers
 You can use this without KDE but the automatic profile switching will not work.
