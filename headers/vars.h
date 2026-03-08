@@ -1,12 +1,15 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/7/2026
+Last Update: 3/8/2026
 */
 
 //dBus service vars (used to get input from the KWIN script)
 #define DBUS_SERVICE "org.mouse.remap"
 #define DBUS_PATH    "/org/mouse/remap"
 #define DBUS_IFACE   "org.mouse.remap"
+
+//debug var
+#define DEBUG 0
 
 //type for key remapping
 struct buttonMapping {
@@ -29,16 +32,18 @@ extern int LAYER_HOLD_BUTTON;
 extern int LAYER_SHIFT_ACTIVE;
 extern int HELD_KEY;
 
-//misc vars
-extern char MOUSE_NAME[256];
-extern char PERSISTENT_PROFILE[256];
+//mouse vars
 extern const char *USER;
 extern int VIRTUALMOUSE;
 extern int MOUSEDEVICEFILE;
+extern int MOUSEKEYBOARDFILE;
 
 //path vars
 extern const char *HOMEPATH;
 extern char CONFIGURATIONFOLDERPATH[512];
 
-//configuration locking vars
+//settings files vars
 extern int PERSISTENT_MODE;
+extern char PERSISTENT_PROFILE[256];
+extern char MOUSE_PHYS[256];
+extern char MOUSE_KEYBOARD_PHYS[256];

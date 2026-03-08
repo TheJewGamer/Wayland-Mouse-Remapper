@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/7/2026
+Last Update: 3/8/2026
 */
 
 //standard includes
@@ -17,7 +17,7 @@ void saveSettings()
     char settingsFilePath[512];
 
     //get settings file path
-    snprintf(settingsFilePath, sizeof(settingsFilePath), "%s/.config/mouse-remap/settings.ini", HOMEPATH);
+    snprintf(settingsFilePath, sizeof(settingsFilePath), "%s/.config/wayland-mouse-remapper/settings.ini", HOMEPATH);
 
     //open settings file
     FILE *settingsFile = fopen(settingsFilePath, "w");
@@ -40,7 +40,11 @@ void saveSettings()
     fclose(settingsFile);
 
     //logging
-    printf("settings saved\n");
+    #if(DEBUG)
+    {
+        printf("settings saved\n");
+    }
+    #endif
 }
 
 void loadSettings()
@@ -49,7 +53,7 @@ void loadSettings()
     char settingsFilePath[512];
 
     //get settings file Path
-    snprintf(settingsFilePath, sizeof(settingsFilePath), "%s/.config/mouse-remap/settings.ini", HOMEPATH);
+    snprintf(settingsFilePath, sizeof(settingsFilePath), "%s/.config/wayland-mouse-remapper/settings.ini", HOMEPATH);
 
     //open settings file
     FILE *settingsFile = fopen(settingsFilePath, "r");
@@ -57,9 +61,11 @@ void loadSettings()
     //confirm not null
     if (!settingsFile)
     {
-        //logging
-        fprintf(stderr, "No settings file found exiting\n");
-        
+        #if (DEBUG)
+            //logging
+            fprintf(stderr, "No settings file found exiting\n");
+        #endif
+
         //exit program
         exit(1);
     }
@@ -92,12 +98,17 @@ void loadSettings()
             //go to next while loop run if cannot split
             continue;
         }
-
-        //check to see if mouse name setting
-        if (strcmp(settingName, "MOUSE_NAME") == 0)
+        //check to see if mouse phys path setting
+        if (strcmp(settingName, "MOUSE_PHYS") == 0)
         {
             //set global var
-            strncpy(MOUSE_NAME, settingValue, sizeof(MOUSE_NAME));
+            strncpy(MOUSE_PHYS, settingValue, sizeof(MOUSE_PHYS));
+        }
+        //check to see if mouse keyboard phys path setting
+        if (strcmp(settingName, "MOUSE_KEYBOARD_PHYS") == 0)
+        {
+            //set global var
+            strncpy(MOUSE_KEYBOARD_PHYS, settingValue, sizeof(MOUSE_KEYBOARD_PHYS));
         }
         //check to see if PERSISTENT_MODE setting
         else if (strcmp(settingName, "PERSISTENT_MODE") == 0)
@@ -117,5 +128,7 @@ void loadSettings()
     fclose(settingsFile);
 
     //logging
-    printf("settings loaded\n");
+    #if (DEBUG)
+        printf("settings loaded\n");
+    #endif
 }

@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/6/2026
+Last Update: 3/8/2026
 */
 
 //standard imports
@@ -16,7 +16,7 @@ Last Update: 3/6/2026
 #include "../headers/vars.h"
 
 //get mouse event id by name. Needed as event ids can change on reboot
-char* getMouseEventID(const char *mouseName)
+char* getMouseEventID(const char *physPath)
 {
     //var
     static char mouseFilePath[64];
@@ -28,7 +28,7 @@ char* getMouseEventID(const char *mouseName)
     if (!inputDevicesFile)
     { 
         //logging
-        perror("open /proc/bus/input/devices"); 
+        perror("open /proc/bus/input/devices");
         
         //stop script
         exit(1); 
@@ -41,14 +41,14 @@ char* getMouseEventID(const char *mouseName)
     //loop through each line in file
     while (fgets(currentLine, sizeof(currentLine), inputDevicesFile))
     {
-        //check to see if current line contains mouseName
-        if (strstr(currentLine, mouseName))
+        //check to see if current line contains physPath
+        if (strstr(currentLine, physPath))
         {
             //it did update var
             foundMouse = 1;
         }
 
-        //check to see if we found the mouseName line
+        //check to see if we found the physPath line
         if (foundMouse)
         {
             //find the handler line
@@ -77,8 +77,12 @@ char* getMouseEventID(const char *mouseName)
 
     //Did not find mouse based on name
     fclose(inputDevicesFile); //close file
-    fprintf(stderr, "ERROR: could not find mouse device: %s\n", mouseName); //Loggins
-    exit(1); //stop script
+
+    //logging
+    fprintf(stderr, "ERROR: could not find mouse device: %s\n", physPath);
+
+    //stop script
+    exit(1);
 }
 
 // sets up the virutal mouse
@@ -87,10 +91,10 @@ int setupVirtualMouse()
     //vars for virtual mouse device
     int uinputFile = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
     if (uinputFile < 0)
-    { 
+    {
         //logging ERROR
         fprintf(stderr, "could not open /dev/uinput\n");
-        
+
         //stop script
         exit(1); 
     }

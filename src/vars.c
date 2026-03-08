@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/7/2026
+Last Update: 3/8/2026
 */
 
 //includes
@@ -31,17 +31,19 @@ int LAYER_HOLD_BUTTON = -1;
 int LAYER_SHIFT_ACTIVE = 0;
 int HELD_KEY = -1;
 
-//misc vars
-char MOUSE_NAME[256] = "NOT SET - ERROR"; //used to get the event ID of the device
-char PERSISTENT_PROFILE[256] = "";
+//mouse vars
 const char *USER = NULL;
 int VIRTUALMOUSE = -1;
 int MOUSEDEVICEFILE = -1;
+int MOUSEKEYBOARDFILE = -1;
 
 
 //path vars
 const char *HOMEPATH = NULL;
 char CONFIGURATIONFOLDERPATH[512] = "";
 
-//configuration locking var
+//settings file vars
 int PERSISTENT_MODE = 0;
+char PERSISTENT_PROFILE[256] = "";
+char MOUSE_PHYS[256] = "";
+char MOUSE_KEYBOARD_PHYS[256] = "";

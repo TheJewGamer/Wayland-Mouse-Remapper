@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/7/2026
+Last Update: 3/8/2026
 */
 
 //includes
@@ -135,8 +135,10 @@ void loadConfig(const char *appName)
     //clear mappings
     freeMappings();
 
-    //logging
-    printf("switching to app: %s\n", appName);
+    #if (DEBUG)
+        //logging
+        printf("switching to app: %s\n", appName);
+    #endif
 
     //vars
     char configurationFilePath[512] = {0};
@@ -156,14 +158,29 @@ void loadConfig(const char *appName)
             //go to next while loop run
             continue;
         }
-        //check if appName is contained in filename of current configuration file
-        else if (strstr(entry->d_name, appName))
+        //skip non .conf files
+        else if (!strstr(entry->d_name, ".conf"))
         {
-            //build full path to configuration file if name matches
-            snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/%s", HOMEPATH, entry->d_name);
+            //go to next while loop run
+            continue;
+        }
+        //passed inital checks
+        else
+        {
+            //remove .conf from file
+            char configName[256];
+            strncpy(configName, entry->d_name, sizeof(configName));
+            configName[strlen(configName) - 5] = 0;
 
-            //end this while loop
-            break;
+            //check if appName is contained in filename of current configuration file
+            if (strstr(appName, configName))
+            {
+                //build full path to configuration file if name matches
+                snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/wayland-mouse-remapper/%s", HOMEPATH, entry->d_name);
+
+                //end this while loop
+                break;
+            }
         }
     }
     //stop reading from configuration directory
@@ -176,17 +193,22 @@ void loadConfig(const char *appName)
     if (!configurationFileData)
     {
         //load default configuration file as no matching configuration file for current focused app found
-        snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/mouse-remap/default.conf", HOMEPATH);
+        snprintf(configurationFilePath, sizeof(configurationFilePath), "%s/.config/wayland-mouse-remapper/default.conf", HOMEPATH);
         configurationFileData = fopen(configurationFilePath, "r");
+        
+        #if (DEBUG)
+            //logging
+            printf("no config for %s, using default\n", appName);
+        #endif
 
-        //logging
-        printf("no config for %s, using default\n", appName);
     }
     //found matching configuration file
     else
     {
-        //logging
-        printf("loaded config for %s\n", configurationFilePath);
+        #if (DEBUG)
+            //logging
+            printf("loaded config for %s\n", configurationFilePath);
+        #endif
     }
 
     //parse configuration file
@@ -204,7 +226,9 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
     dbus_error_init(&err);
 
     //logging
-    printf("dbus thread started\n");
+    #if (DEBUG)
+        printf("window listener dbus thread started\n");
+    #endif
 
     //connect to user dbus session
     DBusConnection *windowListenerConnection = dbus_bus_get(DBUS_BUS_SESSION, &err);
@@ -215,13 +239,19 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
         //errror on dbus connection
 
         //logging
-        fprintf(stderr, "dbus connection error: %s\n", err.message);
+        #if(DEBUG)
+            fprintf(stderr, "window listener dbus connection error: %s\n", err.message);
+        #endif
+
         dbus_error_free(&err);
         return NULL;
     }
 
-    //logging
-    printf("dbus thread connected\n");
+    #if (DEBUG)
+        //logging
+        printf("window listener dbus thread connected\n");
+    #endif
+
 
     //register custom dbus service
     dbus_bus_request_name(windowListenerConnection, DBUS_SERVICE, DBUS_NAME_FLAG_REPLACE_EXISTING, &err);
@@ -230,20 +260,28 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
     if (dbus_error_is_set(&err)) 
     {
         //error
-
-        //logging
-        fprintf(stderr, "dbus name error: %s\n", err.message);
+        
+        #if (DEBUG)
+            //logging
+            fprintf(stderr, "window listener dbus name error: %s\n", err.message);
+        #endif
+        
         dbus_error_free(&err);
         return NULL;
     }
 
     //logging
-    printf("dbubs thread registered\n");
+    #if (DEBUG)
+        printf("window listener dbubs thread registered\n");
+    #endif
 
     //infinite loop but sleeps until dbus gets a message. Will exit if dbus connection is lost though
     while (dbus_connection_read_write_dispatch(windowListenerConnection, -1)) 
     {
-        printf("dbus message received\n");
+        #if(DEBUG)
+            //logging
+            printf("window listener dbus message received\n");
+        #endif
 
         //var
         const char *appName = NULL;
@@ -261,8 +299,11 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
         //check to see if interface called using SetApp
         if (dbus_message_is_method_call(windowListenerInput, DBUS_IFACE, "SetApp")) 
         {
-            //logging
-            printf("SetApp message\n");
+            #if (DEBUG)
+                 //logging
+                printf("SetApp message\n");
+            #endif
+           
 
             //extract data from dbus message
             if (dbus_message_get_args(windowListenerInput, &err, DBUS_TYPE_STRING, &appName, DBUS_TYPE_INVALID)) 
@@ -271,7 +312,10 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
                 if(PERSISTENT_MODE == 0)
                 {
                     //logging
-                    printf("SetApp change app\n");
+                    #if (DEBUG)
+                        printf("SetApp change app\n");
+                    #endif
+                    
 
                     //lock mapping array when changing things
                     pthread_mutex_lock(&BUTTON_MAPPINGS_MUTEX);
@@ -287,14 +331,19 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
         //check to see if interface called using set config
         else if(dbus_message_is_method_call(windowListenerInput, DBUS_IFACE, "SetConfig"))
         {
-            //logging
-            printf("SetConfig message\n");
+            #if (DEBUG)
+                //logging
+                printf("SetConfig message\n");
+            #endif
+            
 
             //extract data from dbus message
             if (dbus_message_get_args(windowListenerInput, &err, DBUS_TYPE_STRING, &appName, DBUS_TYPE_INVALID)) 
             {
-                //logging
-                printf("SetConfig change app\n");
+                #if (DEBUG)
+                    //logging
+                    printf("SetConfig change app\n");
+                #endif
 
                 //lock mapping array when changing things
                 pthread_mutex_lock(&BUTTON_MAPPINGS_MUTEX);
@@ -319,8 +368,10 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
         //check to see if interface called to set SetPersistentMode
         else if(dbus_message_is_method_call(windowListenerInput, DBUS_IFACE, "SetPersistentMode"))
         {
-            //logging
-            printf("SetPersistentMode message\n");
+            #if (DEBUG)
+                //logging
+                printf("SetPersistentMode message\n");
+            #endif
 
             //holder var
             int enabled = 0;
@@ -328,8 +379,10 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
             //extract data from dbus message
             if (dbus_message_get_args(windowListenerInput, &err, DBUS_TYPE_BOOLEAN, &enabled, DBUS_TYPE_INVALID))
             {
-                //logging
-                printf("SetPersistentMode\n");
+                #if (DEBUG)
+                    //logging
+                    printf("SetPersistentMode\n");
+                #endif
 
                 //update var
                 PERSISTENT_MODE = enabled;
@@ -337,15 +390,19 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
                 //save changes to settings file
                 saveSettings();
 
-                //logging
-                printf("persistent mode: %s\n", PERSISTENT_MODE ? "on" : "off");
+                #if (DEBUG)
+                    //logging
+                    printf("persistent mode: %s\n", PERSISTENT_MODE ? "on" : "off");
+                #endif
             }
         }
         //check to see if interfacet called to exit program
         else if(dbus_message_is_method_call(windowListenerInput, DBUS_IFACE, "Stop"))
         {
-            //logging
-            printf("stop command recived. Stoping program\n");
+            #if (DEBUG)
+                //logging
+                printf("stop command recived. Stoping program\n");
+            #endif
 
             //clean up
             dbus_message_unref(windowListenerInput);
