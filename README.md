@@ -29,7 +29,7 @@ You can use this without KDE but the automatic profile switching will not work.
 You should be able to patch this program to work with other window manager's very easily as all you need to do is send the window name to the dbus. If people actually use this feel free to make a feature request and I will see what I can do.
 
 # Building
-- Copy the repo, extract it and run the setup.sh file. This handles the setup and can also be used to update the binary if needed.
+- Copy the repo, extract it and run the setup.sh file. This handles the setup and can also be used to update the binary if needed. You can delete the extracted files after running the setup file.
 
 # DBUS Commands
 The script uses dbus for communication between the KWIN script and the acutal program. You can also send commands via this to set settings. 
