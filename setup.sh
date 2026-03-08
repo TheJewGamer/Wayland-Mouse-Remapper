@@ -481,6 +481,10 @@ else
     log_info "Not on KDE skipping KWIN script install"
 fi
 
+#start program
+systemctl --user enable wayland-mouse-remapper
+systemctl --user start wayland-mouse-remapper
+
 # done
 echo ""
 echo "==============================="
@@ -488,5 +492,5 @@ echo -e "${GREEN} Setup complete${NC}"
 echo "==============================="
 echo ""
 echo "Config directory: $CONFIG_DIR"
-ehco "Confirm program is running via: systemctl --user status wayland-mouse-remapper"
+echo "Confirm program is running via: systemctl --user status wayland-mouse-remapper"
 echo ""
