@@ -1,25 +1,10 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/11/2026
 */
 
-//includes
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <dirent.h>
-#include <pthread.h>
-#include <dbus/dbus.h> 
-#include <sys/ioctl.h>
-#include <unistd.h>
-#include <linux/uinput.h>
-
-//file imports
+//header file
 #include "../headers/config.h"
-#include "../headers/bindings.h"
-#include "../headers/vars.h"
-#include "../headers/helpers.h"
-#include "../headers/settings.h"
 
 //method to parse BUTTON_MAPPINGS from provided configuration file
 void readConfig(FILE *configurationFileData)
@@ -303,7 +288,6 @@ void *windowListener(void *arg) //Note arg is needed here despite not being used
                  //logging
                 printf("SetApp message\n");
             #endif
-           
 
             //extract data from dbus message
             if (dbus_message_get_args(windowListenerInput, &err, DBUS_TYPE_STRING, &appName, DBUS_TYPE_INVALID)) 

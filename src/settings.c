@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/11/2026
 */
 
 //standard includes
@@ -9,7 +9,7 @@ Last Update: 3/8/2026
 #include <string.h>
 
 //other files
-#include "../headers/vars.h"
+#include "../headers/settings.h"
 
 void saveSettings()
 {

@@ -1,19 +1,10 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/11/2026
 */
 
-//standard imports
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <linux/input.h>
-#include <linux/uinput.h>
-
-//file imports
-#include "../headers/vars.h"
+//header file
+#include "../headers/mouse.h"
 
 //get mouse event id by name. Needed as event ids can change on reboot
 char* getMouseEventID(const char *physPath)
@@ -132,7 +123,7 @@ int setupVirtualMouse()
     usetup.id.bustype = BUS_VIRTUAL;
     usetup.id.vendor  = 0x1234;
     usetup.id.product = 0x5678;
-    strcpy(usetup.name, "virtual-mouse");
+    strcpy(usetup.name, "wayland-mouse-remapper-vmouse");
 
     ioctl(uinputFile, UI_DEV_SETUP, &usetup);
     ioctl(uinputFile, UI_DEV_CREATE);

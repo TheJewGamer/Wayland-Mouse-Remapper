@@ -1,13 +1,7 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/11/2026
 */
-
-//includes
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <linux/input.h>
 
 //other files
 #include "../headers/bindings.h"

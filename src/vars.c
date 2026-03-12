@@ -1,11 +1,7 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/11/2026
 */
-
-//includes
-#include <pthread.h>
-#include <linux/input.h>
 
 //other files
 #include "../headers/vars.h"
@@ -20,7 +16,7 @@ struct buttonMapping {
 };
 
 //mapping vars
-struct buttonMapping *BUTTON_MAPPINGS = NULL; //mapping array
+struct buttonMapping *BUTTON_MAPPINGS = NULL; //mapping array Note: not worth it to swap to a dictonary
 int BUTTON_MAPPINGS_AMOUNT = 0; //number of active rebinds
 int BUTTON_MAPPING_ARRAY_SIZE = 0; //number of spaces in the mapping array. Grows and shrinks by power of 2 
 pthread_mutex_t BUTTON_MAPPINGS_MUTEX = PTHREAD_MUTEX_INITIALIZER; //prevents mapping array being accessed by the dbubs thread and this program as same time. If that happend could crash
@@ -29,7 +25,7 @@ pthread_mutex_t BUTTON_MAPPINGS_MUTEX = PTHREAD_MUTEX_INITIALIZER; //prevents ma
 int LAYER_TOGGLE_BUTTON = -1;
 int LAYER_HOLD_BUTTON = -1;
 int LAYER_SHIFT_ACTIVE = 0;
-int HELD_KEY = -1;
+int CURRENT_DOWN_REMAP_BUTTONS[KEY_MAX];
 
 //mouse vars
 const char *USER = NULL;

@@ -1,25 +1,16 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/11/2026
 */
 
-//standard includes
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <pwd.h>
-#include <grp.h>
-#include <sys/stat.h>
-#include <string.h>
+//header file
+#include "../headers/helpers.h"
 
-//file includes
-#include "../headers/vars.h"
-#include "../headers/settings.h"
 
 //method to clean the array and other vars. Garbage collection
 void freeMappings()
 {
+    //reset vars
     free(BUTTON_MAPPINGS);
     BUTTON_MAPPINGS = NULL;
     BUTTON_MAPPINGS_AMOUNT = 0;
@@ -27,6 +18,9 @@ void freeMappings()
     LAYER_TOGGLE_BUTTON = -1;
     LAYER_HOLD_BUTTON = -1;
     LAYER_SHIFT_ACTIVE = 0;
+
+    //re initialize 
+    memset(CURRENT_DOWN_REMAP_BUTTONS, -1, sizeof(CURRENT_DOWN_REMAP_BUTTONS));
 }
 
 //helper function to check that needed things are done when called. Prevents launches that could cause errors

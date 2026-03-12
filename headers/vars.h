@@ -1,7 +1,11 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/8/2026
+Last Update: 3/10/2026
 */
+
+//standard includes
+#include <pthread.h>
+#include <linux/input.h>
 
 //dBus service vars (used to get input from the KWIN script)
 #define DBUS_SERVICE "org.mouse.remap"
@@ -30,7 +34,7 @@ extern pthread_mutex_t BUTTON_MAPPINGS_MUTEX; //prevents mapping array being acc
 extern int LAYER_TOGGLE_BUTTON;
 extern int LAYER_HOLD_BUTTON;
 extern int LAYER_SHIFT_ACTIVE;
-extern int HELD_KEY;
+extern int CURRENT_DOWN_REMAP_BUTTONS[KEY_MAX];
 
 //mouse vars
 extern const char *USER;
