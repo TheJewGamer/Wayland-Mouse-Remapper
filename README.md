@@ -15,12 +15,23 @@ The list of keys that can be used can be seen in the bindings.c file.
 # Configuration
 Configurations files are stored at ~/.config/wayland-mouse-remapper/ and should be the name of the app/window you want to remap.
 
+## Layershift
+Layershift is an optional feature that you can use to have a second layer of mouse bindings. You can use layershift by assgined a key to one of the following triggers:
+- ```LAYER_SHIFT_HOLD```
+    - Enables layershift when held down
+- ```LAYER_SHIFT_TOGGLE```
+    - Toggles layershift on and off each time its pressed
+
+Lastly use: ```[layershift]``` to define your layershift mapping section. Anything under this header will be read as layershift mappings. 
+
+Note that when in layershift any unmapped key will have its normal mapping used even if it was mapped outside of of the layershift section.
+
 # Requirements
 - Linux
     - I used CachyOS so any arch derivative should work
 - Wayland
 - KDE Plasama
-    - Specifically built on Plasma 6
+    - Spefically built on Plasma 6
 
 ## Other Window Managers
 You can use this without KDE but the automatic profile switching will not work.
@@ -29,7 +40,7 @@ You can use this without KDE but the automatic profile switching will not work.
 You should be able to patch this program to work with other window manager's very easily as all you need to do is send the window name to the dbus. If people actually use this feel free to make a feature request and I will see what I can do.
 
 # Building
-- Copy the repo, extract it and run the setup.sh file. This handles the setup and can also be used to update the binary if needed. You can delete the extracted files after running the setup file.
+- Copy the repo, extract it and run the setup.sh file. This handles the setup and can also be used to update the binary if needed.
 
 # DBUS Commands
 The script uses dbus for communication between the KWIN script and the acutal program. You can also send commands via this to set settings. 
