@@ -1,6 +1,6 @@
 /* 
 Author: TheJewGamer
-Last Update: 3/11/2026
+Last Update: 3/14/2026
 */
 
 //header file
@@ -61,17 +61,49 @@ void processEvent(struct input_event ev)
     //check to see if layershift toggle button is pressed
     if (ev.type == EV_KEY && ev.code == LAYER_TOGGLE_BUTTON)
     {
+        #if (DEBUG)
+            //logging
+            printf("Layershift toggle button pushed\n");
+        #endif
+
         //key down only
         if (ev.value == 1)
         {
+            #if (DEBUG)
+            //logging
+                printf("Toggling layershift.\n");
+            #endif
+
             //invert var
             LAYER_SHIFT_ACTIVE = !LAYER_SHIFT_ACTIVE;
+
+            #if (DEBUG)
+                //logging
+                printf("Layershift is now: %d\n", LAYER_SHIFT_ACTIVE);
+            #endif
         }
         return;
     }
     //check to see if layershift hold button is pressed
     else if (ev.type == EV_KEY && ev.code == LAYER_HOLD_BUTTON)
     {
+        //ignore held state as no change
+        if(ev.value == 2)
+        {
+            #if (DEBUG)
+            //logging
+            printf("Layershift hold button currently held\n");
+        #endif
+            
+            //end this run here
+            return;
+        }
+
+        #if (DEBUG)
+            //logging
+            printf("Layershift hold button pressed. Current state: %d\n", ev.value);
+        #endif
+
         //active while held
         LAYER_SHIFT_ACTIVE = ev.value;
         return;
